@@ -15,3 +15,4 @@ Requirements are in SPEC.md. Read it before starting any task.
 ## Commands
 - node build.js → dist/padel.html
 - node test/scheduler.test.js
+- node test/ranking.test.js

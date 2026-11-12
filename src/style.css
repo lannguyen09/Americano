@@ -114,4 +114,33 @@ table.alloc td.num { text-align: right; }
   background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--g);
   border-radius: 6px; padding: 3px 10px; font-size: clamp(16px, 1.3vw, 28px);
 }
+.scores { display: flex; align-items: center; gap: 6px; }
+input.score {
+  width: 2.6em; text-align: center; font-weight: 700; padding: 4px 2px;
+  font-size: clamp(22px, 1.9vw, 40px); -moz-appearance: textfield;
+}
+input.score::-webkit-inner-spin-button, input.score::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input.score.invalid { border-color: #b42318; background: #fdecea; }
+
+/* ---------- Find player ---------- */
+.find-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; }
+.find-item {
+  display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+  background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--g);
+  border-radius: 6px; padding: 6px 12px; font-size: clamp(18px, 1.4vw, 30px);
+}
+.find-name { font-weight: 600; overflow-wrap: anywhere; }
+.find-where { font-weight: 700; white-space: nowrap; }
+.find-where.off { color: var(--muted); font-weight: 500; }
+
+/* ---------- Rankings (projector) ---------- */
+.rank-bar { margin-bottom: 12px; }
+.rank-bar button.active { background: var(--fg); border-color: var(--fg); color: #fff; }
+.rank-card h2 { font-size: clamp(20px, 1.8vw, 36px); }
+table.rank { width: 100%; border-collapse: collapse; font-size: clamp(16px, 1.4vw, 30px); }
+table.rank th, table.rank td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+table.rank th { font-size: .65em; color: var(--muted); font-weight: 500; }
+table.rank .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.rank td.rname { font-weight: 600; }
+table.rank td.strong { font-weight: 700; }
 :fullscreen .topbar { display: none; }

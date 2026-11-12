@@ -41,7 +41,7 @@
       else if (k === 'class') node.className = v;
       else node.setAttribute(k, v);
     }
-    for (const c of children.flat()) if (c != null) node.append(c);
+    for (const c of children.flat(Infinity)) if (c != null) node.append(c);
     return node;
   }
 
@@ -344,6 +344,25 @@
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
   }
 
+  // Current round = first draft round (last round when everything is confirmed).
+  function currentRoundIdx() {
+    return Math.max(0, Math.min(S.confirmedPrefix(state.rounds).length, state.rounds.length - 1));
+  }
+  // Games per side: empty or a non-negative integer. Saved on every keystroke without re-render.
+  function scoreInput(m, key, label) {
+    const inp = el('input', { type: 'number', min: 0, step: 1, inputmode: 'numeric', class: 'score',
+      'aria-label': label, value: m[key] == null ? '' : m[key] });
+    inp.addEventListener('input', () => {
+      const raw = inp.value.trim();
+      const n = raw === '' ? null : Number(raw);
+      const ok = !inp.validity.badInput && (n === null || (Number.isInteger(n) && n >= 0));
+      inp.classList.toggle('invalid', !ok);
+      m[key] = ok ? n : null;
+      save();
+    });
+    return inp;
+  }
+
   views.rounds = () => {
     if (!state.started || !state.rounds.length) {
       return el('div', { class: 'card empty' }, 'No rounds yet. Add players and courts in Setup, then press Start.');
@@ -368,11 +387,16 @@
       el('span', { class: 'badge ' + round.status }, label(round)));
 
     const team = ids => el('div', { class: 'team' }, ids.map(id => el('div', { class: 'pname' }, name(id))));
+    const scorable = idx <= currentRoundIdx();
     const cards = el('div', { class: 'courts' }, round.matches.map(m => {
       const g = gm.get(m.groupId) || { name: '', color: '#888' };
+      const mid = scorable
+        ? el('div', { class: 'scores' }, scoreInput(m, 'scoreA', 'Team A games'), el('span', { class: 'vs' }, '–'),
+          scoreInput(m, 'scoreB', 'Team B games'))
+        : el('div', { class: 'vs' }, 'vs');
       return el('div', { class: 'court', style: `--g:${g.color}` },
         el('div', { class: 'court-head' }, `Court ${m.court} — ${g.name}`),
-        el('div', { class: 'match' }, team(m.teamA), el('div', { class: 'vs' }, 'vs'), team(m.teamB)));
+        el('div', { class: 'match' }, team(m.teamA), mid, team(m.teamB)));
     }));
 
     const groupsResting = state.groups.map(g => ({
@@ -386,9 +410,59 @@
     return el('div', { class: 'rounds' }, bar, title, cards, resting);
   };
 
-  const later = title => () => section(title, el('p', { class: 'muted' }, 'Coming in a later milestone.'));
-  views.find = later('Find player');
-  views.rankings = later('Rankings');
+  const notStarted = () => el('div', { class: 'card empty' }, 'No rounds yet. Add players and courts in Setup, then press Start.');
+
+  views.find = () => {
+    if (!state.started || !state.rounds.length) return notStarted();
+    const ci = currentRoundIdx();
+    const round = state.rounds[ci];
+    const gm = new Map(state.groups.map(g => [g.id, g]));
+    const where = new Map();
+    round.matches.forEach(m => m.teamA.concat(m.teamB).forEach(id => where.set(id, `Court ${m.court}`)));
+    round.resting.forEach(id => where.set(id, 'Resting'));
+    const players = state.players.slice().sort((a, b) => a.name.localeCompare(b.name));
+    return el('div', { class: 'find' },
+      el('h2', { class: 'round-title' }, `Round ${ci + 1}`,
+        el('span', { class: 'badge ' + round.status }, round.status === 'confirmed' ? 'Confirmed' : 'Suggested')),
+      el('div', { class: 'find-list' }, players.map(p => {
+        const w = where.get(p.id) || 'Absent';
+        return el('div', { class: 'find-item', style: `--g:${(gm.get(p.groupId) || { color: '#888' }).color}` },
+          el('span', { class: 'find-name' }, p.name),
+          el('span', { class: 'find-where' + (w.startsWith('Court') ? '' : ' off') }, w));
+      })));
+  };
+
+  function rankTable(title, color, rows) {
+    const gm = new Map(state.groups.map(g => [g.id, g]));
+    const diff = d => (d > 0 ? '+' + d : String(d));
+    const head = ['Rank', isTeams() ? 'Team' : 'Name', 'Group', 'Played', 'Rested', 'Won', 'Lost', 'Diff', 'W-D-L', 'Avg'];
+    return el('section', { class: 'card rank-card', style: color ? `--g:${color}` : '' },
+      el('h2', {}, color ? el('span', { class: 'swatch' }) : null, title),
+      el('table', { class: 'rank' },
+        el('thead', {}, el('tr', {}, head.map((h, i) => el('th', { class: i > 2 ? 'num' : '' }, h)))),
+        el('tbody', {}, rows.map(r => el('tr', {},
+          el('td', { class: 'num' }, String(r.rank)),
+          el('td', { class: 'rname' }, r.name),
+          el('td', {}, el('span', { class: 'swatch', style: `--g:${(gm.get(r.groupId) || {}).color}` }), r.group),
+          el('td', { class: 'num' }, String(r.played)),
+          el('td', { class: 'num' }, String(r.rested)),
+          el('td', { class: 'num strong' }, String(r.won)),
+          el('td', { class: 'num' }, String(r.lost)),
+          el('td', { class: 'num' }, diff(r.diff)),
+          el('td', { class: 'num' }, `${r.w}-${r.d}-${r.l}`),
+          el('td', { class: 'num muted' }, r.played ? r.avg.toFixed(1) : '—'))))));
+  }
+
+  views.rankings = () => {
+    if (!state.started || !state.rounds.length) return notStarted();
+    const f = state.ui.rankFilter === 'all' ? 'all' : 'group';
+    const bar = el('div', { class: 'row rank-bar' }, [['group', 'Per group'], ['all', 'All']].map(([k, label]) =>
+      el('button', { class: f === k ? 'active' : '', onclick: () => act(() => { state.ui.rankFilter = k; }) }, label)));
+    const tables = f === 'all'
+      ? [rankTable('All groups', null, S.computeRankings(state, null))]
+      : state.groups.map(g => rankTable(g.name, g.color, S.computeRankings(state, g.id)));
+    return el('div', { class: 'rankings' }, bar, tables);
+  };
   views.data = () => section('Data',
     el('p', { class: 'muted' }, 'Export, import and the fairness report come in a later milestone.'),
     el('button', { class: 'danger', onclick: () => act(() => {
