@@ -55,6 +55,7 @@
 
   // ---------- Helpers ----------
   const S = window.Scheduler;
+  const R = window.Ranking;
   const COLORS = ['#1f6feb', '#1a7f37', '#c2410c', '#8250df'];
   const DEMO_NAMES = ('Anna Bram Carla Daan Eva Floris Gwen Hugo Iris Jesse Kim Lars Maud Niels Olga ' +
     'Pieter Quinty Ruben Sanne Tim Ursula Victor Wendy Xander Yara Zeno Amber Bas Chloe Dirk Elise Frank ' +
@@ -344,10 +345,6 @@
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
   }
 
-  // Current round = first draft round (last round when everything is confirmed).
-  function currentRoundIdx() {
-    return Math.max(0, Math.min(S.confirmedPrefix(state.rounds).length, state.rounds.length - 1));
-  }
   // Games per side: empty or a non-negative integer. Saved on every keystroke without re-render.
   function scoreInput(m, key, label) {
     const inp = el('input', { type: 'number', min: 0, step: 1, inputmode: 'numeric', class: 'score',
@@ -386,17 +383,17 @@
     const title = el('h2', { class: 'round-title' }, `Round ${idx + 1} of ${state.rounds.length}`,
       el('span', { class: 'badge ' + round.status }, label(round)));
 
-    const team = ids => el('div', { class: 'team' }, ids.map(id => el('div', { class: 'pname' }, name(id))));
-    const scorable = idx <= currentRoundIdx();
+    // Scores can be entered in every round for now (M4 restricts this to confirmed rounds).
+    const team = (m, key, label) => {
+      const names = m[key === 'scoreA' ? 'teamA' : 'teamB'].map(name).join(' / ');
+      return el('div', { class: 'team-row' }, el('div', { class: 'tnames', title: names }, names),
+        scoreInput(m, key, label));
+    };
     const cards = el('div', { class: 'courts' }, round.matches.map(m => {
       const g = gm.get(m.groupId) || { name: '', color: '#888' };
-      const mid = scorable
-        ? el('div', { class: 'scores' }, scoreInput(m, 'scoreA', 'Team A games'), el('span', { class: 'vs' }, '–'),
-          scoreInput(m, 'scoreB', 'Team B games'))
-        : el('div', { class: 'vs' }, 'vs');
       return el('div', { class: 'court', style: `--g:${g.color}` },
         el('div', { class: 'court-head' }, `Court ${m.court} — ${g.name}`),
-        el('div', { class: 'match' }, team(m.teamA), mid, team(m.teamB)));
+        team(m, 'scoreA', 'Team A games'), el('div', { class: 'vs' }, 'vs'), team(m, 'scoreB', 'Team B games'));
     }));
 
     const groupsResting = state.groups.map(g => ({
@@ -412,24 +409,43 @@
 
   const notStarted = () => el('div', { class: 'card empty' }, 'No rounds yet. Add players and courts in Setup, then press Start.');
 
+  let findQuery = '';         // Find player search text (not persisted)
+
+  // Assignment in the round selected on the Rounds tab.
   views.find = () => {
     if (!state.started || !state.rounds.length) return notStarted();
-    const ci = currentRoundIdx();
+    const ci = Math.max(0, Math.min(state.ui.roundIdx, state.rounds.length - 1));
     const round = state.rounds[ci];
     const gm = new Map(state.groups.map(g => [g.id, g]));
     const where = new Map();
     round.matches.forEach(m => m.teamA.concat(m.teamB).forEach(id => where.set(id, `Court ${m.court}`)));
     round.resting.forEach(id => where.set(id, 'Resting'));
     const players = state.players.slice().sort((a, b) => a.name.localeCompare(b.name));
+    const items = players.map(p => {
+      const w = where.get(p.id) || 'Absent';
+      const item = el('div', { class: 'find-item', style: `--g:${(gm.get(p.groupId) || { color: '#888' }).color}` },
+        el('span', { class: 'find-name' }, p.name),
+        el('span', { class: 'find-where' + (w.startsWith('Court') ? '' : ' off') }, w));
+      return { item, key: p.name.toLowerCase() };
+    });
+    const empty = el('p', { class: 'muted' }, 'No player matches.');
+    // Filter in place so the search box keeps focus while typing.
+    const apply = () => {
+      const q = norm(findQuery).toLowerCase();
+      let shown = 0;
+      for (const { item, key } of items) { const ok = key.includes(q); item.hidden = !ok; shown += ok; }
+      empty.hidden = shown > 0;
+    };
+    const search = el('input', { type: 'search', class: 'find-search', placeholder: 'Search player…',
+      'aria-label': 'Search player', value: findQuery });
+    search.addEventListener('input', () => { findQuery = search.value; apply(); });
+    apply();
+    setTimeout(() => search.focus(), 0);
     return el('div', { class: 'find' },
       el('h2', { class: 'round-title' }, `Round ${ci + 1}`,
         el('span', { class: 'badge ' + round.status }, round.status === 'confirmed' ? 'Confirmed' : 'Suggested')),
-      el('div', { class: 'find-list' }, players.map(p => {
-        const w = where.get(p.id) || 'Absent';
-        return el('div', { class: 'find-item', style: `--g:${(gm.get(p.groupId) || { color: '#888' }).color}` },
-          el('span', { class: 'find-name' }, p.name),
-          el('span', { class: 'find-where' + (w.startsWith('Court') ? '' : ' off') }, w));
-      })));
+      search, empty,
+      el('div', { class: 'find-list' }, items.map(x => x.item)));
   };
 
   function rankTable(title, color, rows) {
@@ -459,8 +475,8 @@
     const bar = el('div', { class: 'row rank-bar' }, [['group', 'Per group'], ['all', 'All']].map(([k, label]) =>
       el('button', { class: f === k ? 'active' : '', onclick: () => act(() => { state.ui.rankFilter = k; }) }, label)));
     const tables = f === 'all'
-      ? [rankTable('All groups', null, S.computeRankings(state, null))]
-      : state.groups.map(g => rankTable(g.name, g.color, S.computeRankings(state, g.id)));
+      ? [rankTable('All groups', null, R.computeRankings(state, null))]
+      : state.groups.map(g => rankTable(g.name, g.color, R.computeRankings(state, g.id)));
     return el('div', { class: 'rankings' }, bar, tables);
   };
   views.data = () => section('Data',

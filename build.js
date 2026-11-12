@@ -10,6 +10,7 @@ let html = read('index.template.html');
 const parts = {
   '/*__STYLE__*/': read('style.css'),
   '/*__SCHEDULER__*/': safeJs(read('scheduler.js')),
+  '/*__RANKING__*/': safeJs(read('ranking.js')),
   '/*__APP__*/': safeJs(read('app.js')),
 };
 for (const [marker, content] of Object.entries(parts)) {

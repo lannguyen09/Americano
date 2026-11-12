@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('assert');
-const S = require('../src/scheduler.js');
+const S = require('../src/ranking.js');
 
 let failed = 0;
 function test(name, fn) {
