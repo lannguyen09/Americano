@@ -128,6 +128,17 @@ test('REFERENCE 69 players / 9 courts / 6 rounds', () => {
   assert.strictEqual(beg.maxConsecutiveRests, 1, 'Beginner consecutive rests');
 });
 
+test('REFERENCE 69: fairness report shape matches SPEC (per group, all metrics)', () => {
+  assert.ok(ref69, 'reference report computed');
+  assert.deepStrictEqual(ref69.map(r => [r.group, r.units]), [['Advanced', 21], ['Beginner', 48]]);
+  const keys = ['restsMin', 'restsMax', 'maxConsecutiveRests', 'repeatedPartnerships',
+    'repeatedOpponentPairs', 'sameCourtConsecutive'];
+  for (const r of ref69) for (const k of keys) assert.ok(Number.isInteger(r[k]) && r[k] >= 0, `${r.group}.${k}`);
+  const adv = byName(ref69, 'Advanced');
+  assert.strictEqual(adv.restsMax - adv.restsMin, 1, 'Advanced rests 2 or 3 (54 rests over 21 players)');
+  assert.ok(ref69.every(r => r.maxConsecutiveRests <= 1), '0 consecutive rests');
+});
+
 test('69 players: targets hold for 20 different seeds', () => {
   const st = makeState({ groups: [['Advanced', 21], ['Beginner', 48]], courts: 9, numRounds: 6 });
   const bad = [];

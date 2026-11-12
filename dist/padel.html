@@ -145,7 +145,7 @@ input.score.invalid { border-color: #b42318; background: #fdecea; }
   background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--g);
   border-radius: 6px; padding: 6px 12px; font-size: clamp(18px, 1.4vw, 30px);
 }
-.find-name { font-weight: 600; overflow-wrap: anywhere; }
+.find-name { font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .find-where { font-weight: 700; white-space: nowrap; }
 .find-where.off { color: var(--muted); font-weight: 500; }
 
@@ -176,6 +176,36 @@ button.pname:not(.chip) { border: 0; background: none; padding: 0 2px; font-weig
 button.pname:hover { background: #eef4ff; }
 button.pname.sel { background: #ffd84d; outline: 3px solid #c98a00; }
 pre.fair { overflow-x: auto; font-size: 14px; margin: 0; }
+
+/* ---------- Projector polish (M5) ---------- */
+.round-bar .nav.next { font-size: 18px; padding: 8px 16px; font-weight: 600; white-space: nowrap; }
+.court-head, .round-title, .rest-label, .rank-card h2 { overflow-wrap: normal; word-break: normal; }
+.court-head { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table.rank th, table.rank td { white-space: nowrap; }
+table.rank td.rname { max-width: 18em; overflow: hidden; text-overflow: ellipsis; }
+.final-btn { margin-left: auto; }
+
+/* ---------- Final standings overlay ---------- */
+.final-overlay {
+  position: fixed; inset: 0; z-index: 100; overflow: auto;
+  background: var(--bg); padding: 2vh 2vw;
+}
+.final-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 2vh; }
+.final-head h1 { margin: 0; font-size: clamp(32px, 3.6vw, 72px); }
+.final-close { font-size: clamp(24px, 2vw, 40px); line-height: 1; padding: 8px 18px; }
+.final-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(560px, 100%), 1fr)); gap: 2vw; align-items: start; }
+.fs-group { background: var(--card); border: 3px solid var(--g); border-radius: 14px; overflow: hidden; }
+.fs-group h2 { margin: 0; padding: 10px 18px; background: var(--g); color: #fff; font-size: clamp(28px, 2.6vw, 52px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: clamp(24px, 2.1vw, 44px); }
+.fs-table th, .fs-table td { padding: .2em .5em; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.fs-table th { font-size: .6em; color: var(--muted); font-weight: 500; }
+.fs-table .num { text-align: right; font-variant-numeric: tabular-nums; width: 1%; }
+.fs-table td.fs-name { font-weight: 600; max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.fs-table td.strong { font-weight: 800; }
+.fs-table tr.top td { font-size: 1.2em; font-weight: 800; }
+.fs-table tr.top1 { background: #ffe9a8; }
+.fs-table tr.top2 { background: #e6e9ee; }
+.fs-table tr.top3 { background: #f4d6bd; }
 </style>
 </head>
 <body>
@@ -1280,12 +1310,12 @@ pre.fair { overflow-x: auto; font-size: 14px; margin: 0; }
 
     const bar = el('div', { class: 'round-bar' },
       el('button', { class: 'link back', onclick: () => act(() => { state.ui.tab = 'setup'; }) }, '← Setup'),
-      el('button', { class: 'nav', disabled: idx === 0, title: 'Previous round (←)', onclick: () => goRound(idx - 1) }, '‹'),
+      el('button', { class: 'nav', disabled: idx === 0, title: 'Previous round (←)', 'aria-label': 'Previous round', onclick: () => goRound(idx - 1) }, '‹'),
       el('div', { class: 'pills' }, state.rounds.map((r, i) => el('button', {
         class: `pill ${r.status}${i === idx ? ' active' : ''}`, title: `Round ${i + 1}: ${label(r)}`,
         onclick: () => goRound(i),
       }, String(i + 1)))),
-      el('button', { class: 'nav', disabled: idx === state.rounds.length - 1, title: 'Next round (→)', onclick: () => goRound(idx + 1) }, '›'),
+      el('button', { class: 'nav next', disabled: idx === state.rounds.length - 1, title: 'Next round (→)', onclick: () => goRound(idx + 1) }, 'Next round ›'),
       el('button', { class: 'fs-btn', onclick: toggleFullscreen }, document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'));
 
     const title = el('h2', { class: 'round-title' }, `Round ${idx + 1} of ${state.rounds.length}`,
@@ -1405,11 +1435,34 @@ pre.fair { overflow-x: auto; font-size: 14px; margin: 0; }
     const f = state.ui.rankFilter === 'all' ? 'all' : 'group';
     const bar = el('div', { class: 'row rank-bar' }, [['group', 'Per group'], ['all', 'All']].map(([k, label]) =>
       el('button', { class: f === k ? 'active' : '', onclick: () => act(() => { state.ui.rankFilter = k; }) }, label)));
+    bar.append(el('button', { class: 'primary final-btn', onclick: () => { finalOpen = true; render(); } }, 'Final standings'));
     const tables = f === 'all'
       ? [rankTable('All groups', null, R.computeRankings(state, null))]
       : state.groups.map(g => rankTable(g.name, g.color, R.computeRankings(state, g.id)));
-    return el('div', { class: 'rankings' }, bar, tables);
+    return el('div', { class: 'rankings' }, bar, tables, finalOpen ? finalStandings() : null);
   };
+
+  // Full-screen projector overlay: per group, top 3 highlighted. Esc or ✕ closes.
+  let finalOpen = false;
+  function finalStandings() {
+    const close = () => { finalOpen = false; render(); };
+    const diff = d => (d > 0 ? '+' + d : String(d));
+    const cols = state.groups.map(g => el('section', { class: 'fs-group', style: `--g:${g.color}` },
+      el('h2', {}, g.name),
+      el('table', { class: 'fs-table' },
+        el('thead', {}, el('tr', {},
+          el('th', { class: 'num' }, '#'), el('th', {}, isTeams() ? 'Team' : 'Name'),
+          el('th', { class: 'num' }, 'Won'), el('th', { class: 'num' }, 'Diff'))),
+        el('tbody', {}, R.computeRankings(state, g.id).map(r => el('tr', { class: r.rank <= 3 ? `top top${r.rank}` : '' },
+          el('td', { class: 'num' }, String(r.rank)),
+          el('td', { class: 'fs-name', title: r.name }, r.name),
+          el('td', { class: 'num strong' }, String(r.won)),
+          el('td', { class: 'num' }, diff(r.diff))))))));
+    return el('div', { class: 'final-overlay', role: 'dialog', 'aria-label': 'Final standings' },
+      el('div', { class: 'final-head' }, el('h1', {}, 'Final standings'),
+        el('button', { class: 'final-close', 'aria-label': 'Close (Esc)', title: 'Close (Esc)', onclick: close }, '✕')),
+      el('div', { class: 'final-groups' }, cols));
+  }
   function exportJson() {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1450,6 +1503,7 @@ pre.fair { overflow-x: auto; font-size: 14px; margin: 0; }
   };
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && finalOpen) { finalOpen = false; render(); return; }
     if (e.key === 'Escape' && selected) { selected = null; render(); return; }
     if (state.ui.tab !== 'rounds' || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {

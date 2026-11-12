@@ -497,12 +497,12 @@
 
     const bar = el('div', { class: 'round-bar' },
       el('button', { class: 'link back', onclick: () => act(() => { state.ui.tab = 'setup'; }) }, '← Setup'),
-      el('button', { class: 'nav', disabled: idx === 0, title: 'Previous round (←)', onclick: () => goRound(idx - 1) }, '‹'),
+      el('button', { class: 'nav', disabled: idx === 0, title: 'Previous round (←)', 'aria-label': 'Previous round', onclick: () => goRound(idx - 1) }, '‹'),
       el('div', { class: 'pills' }, state.rounds.map((r, i) => el('button', {
         class: `pill ${r.status}${i === idx ? ' active' : ''}`, title: `Round ${i + 1}: ${label(r)}`,
         onclick: () => goRound(i),
       }, String(i + 1)))),
-      el('button', { class: 'nav', disabled: idx === state.rounds.length - 1, title: 'Next round (→)', onclick: () => goRound(idx + 1) }, '›'),
+      el('button', { class: 'nav next', disabled: idx === state.rounds.length - 1, title: 'Next round (→)', onclick: () => goRound(idx + 1) }, 'Next round ›'),
       el('button', { class: 'fs-btn', onclick: toggleFullscreen }, document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'));
 
     const title = el('h2', { class: 'round-title' }, `Round ${idx + 1} of ${state.rounds.length}`,
@@ -622,11 +622,34 @@
     const f = state.ui.rankFilter === 'all' ? 'all' : 'group';
     const bar = el('div', { class: 'row rank-bar' }, [['group', 'Per group'], ['all', 'All']].map(([k, label]) =>
       el('button', { class: f === k ? 'active' : '', onclick: () => act(() => { state.ui.rankFilter = k; }) }, label)));
+    bar.append(el('button', { class: 'primary final-btn', onclick: () => { finalOpen = true; render(); } }, 'Final standings'));
     const tables = f === 'all'
       ? [rankTable('All groups', null, R.computeRankings(state, null))]
       : state.groups.map(g => rankTable(g.name, g.color, R.computeRankings(state, g.id)));
-    return el('div', { class: 'rankings' }, bar, tables);
+    return el('div', { class: 'rankings' }, bar, tables, finalOpen ? finalStandings() : null);
   };
+
+  // Full-screen projector overlay: per group, top 3 highlighted. Esc or ✕ closes.
+  let finalOpen = false;
+  function finalStandings() {
+    const close = () => { finalOpen = false; render(); };
+    const diff = d => (d > 0 ? '+' + d : String(d));
+    const cols = state.groups.map(g => el('section', { class: 'fs-group', style: `--g:${g.color}` },
+      el('h2', {}, g.name),
+      el('table', { class: 'fs-table' },
+        el('thead', {}, el('tr', {},
+          el('th', { class: 'num' }, '#'), el('th', {}, isTeams() ? 'Team' : 'Name'),
+          el('th', { class: 'num' }, 'Won'), el('th', { class: 'num' }, 'Diff'))),
+        el('tbody', {}, R.computeRankings(state, g.id).map(r => el('tr', { class: r.rank <= 3 ? `top top${r.rank}` : '' },
+          el('td', { class: 'num' }, String(r.rank)),
+          el('td', { class: 'fs-name', title: r.name }, r.name),
+          el('td', { class: 'num strong' }, String(r.won)),
+          el('td', { class: 'num' }, diff(r.diff))))))));
+    return el('div', { class: 'final-overlay', role: 'dialog', 'aria-label': 'Final standings' },
+      el('div', { class: 'final-head' }, el('h1', {}, 'Final standings'),
+        el('button', { class: 'final-close', 'aria-label': 'Close (Esc)', title: 'Close (Esc)', onclick: close }, '✕')),
+      el('div', { class: 'final-groups' }, cols));
+  }
   function exportJson() {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -667,6 +690,7 @@
   };
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && finalOpen) { finalOpen = false; render(); return; }
     if (e.key === 'Escape' && selected) { selected = null; render(); return; }
     if (state.ui.tab !== 'rounds' || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
