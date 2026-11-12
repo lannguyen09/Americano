@@ -64,6 +64,8 @@
 
   let notice = null;          // {kind: 'error'|'info', text}
   const pasteDrafts = {};     // textarea content per group id (not persisted)
+  let editing = false;        // "Edit setup" unlocked while the tournament runs (not persisted)
+  let selected = null;        // player id selected for a swap in the current round (not persisted)
 
   const norm = s => String(s).trim().replace(/\s+/g, ' ');
   const isTeams = () => state.mode === 'teams';
@@ -82,8 +84,23 @@
     return state.rounds.some(r => r.status === 'confirmed' &&
       (r.resting.includes(pid) || r.matches.some(m => m.teamA.includes(pid) || m.teamB.includes(pid))));
   }
+  const confirmedCount = () => S.confirmedPrefix(state.rounds || []).length;
+  // Mode, courts and groups: editable before start, or in "Edit setup" while nothing is confirmed.
+  const courtsLocked = () => state.started && (!editing || confirmedCount() > 0);
+  // Players and number of rounds: editable before start, or in "Edit setup".
+  const setupLocked = () => state.started && !editing;
+  function newSeed() { return (Date.now() % 2147483646) + 1; }
+
   function regenerate() {
     if (!state.started) return;
+    if (!confirmedCount()) {
+      const errs = startErrors();
+      if (errs.length) {
+        state.rounds = [];
+        return setNotice('error', 'Suggested rounds are cleared until the setup is valid: ' + errs.join(' '));
+      }
+      state.courtAssignment = allocation().assignment;
+    }
     state.rounds = S.scheduleState(state);
     state.ui.roundIdx = Math.max(0, Math.min(state.ui.roundIdx, state.rounds.length - 1));
   }
@@ -103,10 +120,11 @@
 
   // ---------- Setup actions ----------
   function setMode(mode) {
-    if (state.started || mode === state.mode) return;
+    if (courtsLocked() || mode === state.mode) return;
     if (state.players.length && !confirm('Switching mode removes all players. Continue?')) return;
     state.players = []; state.teams = [];
     state.mode = mode;
+    regenerate();
   }
   function addGroup() {
     if (state.groups.length >= 4) return;
@@ -121,6 +139,7 @@
     state.groups = state.groups.filter(g => g.id !== gid);
     state.players = state.players.filter(p => p.groupId !== gid);
     state.teams = state.teams.filter(t => t.groupId !== gid);
+    regenerate();
   }
   function renameGroup(gid, name) {
     name = norm(name);
@@ -180,13 +199,16 @@
     n = Math.max(1, Math.min(40, Math.floor(n) || 1));
     state.clubCourts = n;
     state.courts = state.courts.filter(c => c <= n);
+    regenerate();
   }
+  function setCourts(list) { state.courts = list.slice().sort((a, b) => a - b); regenerate(); }
   function toggleCourt(c) {
-    state.courts = state.courts.includes(c) ? state.courts.filter(x => x !== c) : state.courts.concat(c).sort((a, b) => a - b);
+    setCourts(state.courts.includes(c) ? state.courts.filter(x => x !== c) : state.courts.concat(c));
   }
   function setOverride(gid, val) {
     const g = state.groups.find(x => x.id === gid);
     g.courtsOverride = val === '' ? null : Math.max(0, Math.floor(+val) || 0);
+    regenerate();
   }
   function setRounds(val) {
     const min = state.started ? Math.max(1, S.confirmedPrefix(state.rounds).length) : 1;
@@ -199,11 +221,25 @@
     const errs = startErrors();
     if (errs.length) return setNotice('error', errs.join(' '));
     state.courtAssignment = allocation().assignment;
-    state.seed = (Date.now() % 2147483646) + 1;
+    state.seed = newSeed();
     state.started = true;
     state.rounds = S.scheduleState(state);
     state.ui.tab = 'rounds';
     state.ui.roundIdx = 0;
+  }
+  function restart() {
+    if (!confirm('Restart the tournament? All rounds and scores are deleted. Players and settings are kept.')) return;
+    state = S.restartTournament(state);
+    state.ui.roundIdx = 0;
+    editing = false; selected = null;
+    setNotice('info', 'Tournament restarted. Check the setup and press Start.');
+  }
+  function newTournament() {
+    if (!confirm('Start a new tournament? Everything (players, settings, rounds and scores) is deleted.')) return;
+    const ui = state.ui;
+    state = defaultState();
+    state.ui.rankFilter = ui.rankFilter;
+    editing = false; selected = null;
   }
   function loadDemo() {
     if (state.players.length && !confirm('Loading the demo replaces all current players and settings. Continue?')) return;
@@ -225,7 +261,8 @@
   const views = {};
   const section = (title, ...children) => el('section', { class: 'card' }, el('h2', {}, title), ...children);
 
-  function groupCard(g, locked) {
+  // locked: players read-only; groupLocked: group cannot be removed.
+  function groupCard(g, locked, groupLocked) {
     const pm = playerMap();
     const units = S.unitsForGroup(state, g.id);
     const ta = el('textarea', {
@@ -237,17 +274,18 @@
     return el('div', { class: 'group', style: `--g:${g.color}` },
       el('div', { class: 'group-head' },
         el('span', { class: 'swatch' }),
-        el('input', { class: 'group-name', value: g.name, onchange: e => act(() => renameGroup(g.id, e.target.value)) }),
+        el('input', { class: 'group-name', value: g.name, disabled: locked, onchange: e => act(() => renameGroup(g.id, e.target.value)) }),
         el('span', { class: 'muted' }, `${units.length} ${unitWord()}`),
-        locked ? null : el('button', { class: 'link danger', onclick: () => act(() => removeGroup(g.id)) }, 'Remove group')),
-      el('div', { class: 'paste' }, ta,
+        groupLocked ? null : el('button', { class: 'link danger', onclick: () => act(() => removeGroup(g.id)) }, 'Remove group')),
+      locked ? null : el('div', { class: 'paste' }, ta,
         el('button', { onclick: () => act(() => addLines(g.id, ta.value)) }, isTeams() ? 'Add teams' : 'Add players')),
-      el('div', { class: 'roster' }, units.map(u => el('div', { class: 'roster-item' },
+      el('div', { class: 'roster' }, units.map(u => el('div', { class: 'roster-item' + (u.absentFromRound != null ? ' absent' : ''),
+        title: u.absentFromRound != null ? `Absent from round ${u.absentFromRound + 1}` : null },
         u.members.map((pid, i) => [
           i ? el('span', { class: 'muted' }, '/') : null,
-          el('input', { value: pm.get(pid).name, onchange: e => act(() => renamePlayer(pid, e.target.value)) }),
+          el('input', { value: pm.get(pid).name, disabled: locked, onchange: e => act(() => renamePlayer(pid, e.target.value)) }),
         ]),
-        el('button', { class: 'x', title: 'Remove', onclick: () => act(() => removeUnit(u.id)) }, '×')))));
+        locked ? null : el('button', { class: 'x', title: 'Remove', onclick: () => act(() => removeUnit(u.id)) }, '×')))));
   }
 
   function allocationTable(locked) {
@@ -282,13 +320,26 @@
   }
 
   views.setup = () => {
-    const locked = state.started;
+    const locked = courtsLocked();
+    const pLocked = setupLocked();
+    const nConf = confirmedCount();
+    const errs = startErrors();
     const wrap = el('div', { class: 'setup' });
-    if (notice) wrap.append(el('div', { class: 'notice ' + notice.kind }, notice.text));
-    if (locked) {
-      wrap.append(el('div', { class: 'notice info' },
-        'Tournament started. Mode and courts are locked. Adding or removing players or changing the number of rounds regenerates the suggested rounds.'));
+    if (state.started) {
+      const why = !editing ? 'Setup is locked. Use "Edit setup" to change players, courts or rounds.'
+        : nConf ? `Mode and courts are locked because ${nConf} round${nConf > 1 ? 's are' : ' is'} confirmed. ` +
+          'Players and number of rounds can still change; only the suggested rounds are regenerated.'
+        : 'No round is confirmed yet, so everything can be changed. Suggested rounds are regenerated on every change.';
+      wrap.append(el('div', { class: 'banner' },
+        el('div', {}, el('strong', {}, 'Tournament running'), el('span', { class: 'muted' }, ' — ' + why)),
+        el('div', { class: 'row' },
+          el('button', { class: editing ? 'primary' : '', disabled: editing && !nConf && errs.length > 0,
+            title: editing && !nConf && errs.length ? 'Fix the setup errors first' : null,
+            onclick: () => act(() => { editing = !editing; }) }, editing ? 'Done editing' : 'Edit setup'),
+          el('button', { onclick: () => act(restart) }, 'Restart tournament'),
+          el('button', { class: 'danger', onclick: () => act(newTournament) }, 'New tournament'))));
     }
+    if (notice) wrap.append(el('div', { class: 'notice ' + notice.kind }, notice.text));
 
     const modeBtn = (m, label, sub) => el('button', {
       class: 'opt' + (state.mode === m ? ' active' : ''), disabled: locked && state.mode !== m,
@@ -300,7 +351,7 @@
 
     wrap.append(section('2. Players',
       el('p', { class: 'muted' }, 'Groups are levels (e.g. Advanced, Beginner), 1–4 groups. Each group plays on its own courts.'),
-      el('div', { class: 'groups' }, state.groups.map(g => groupCard(g, locked))),
+      el('div', { class: 'groups' }, state.groups.map(g => groupCard(g, pLocked, locked))),
       !locked && state.groups.length < 4 ? el('button', { onclick: () => act(addGroup) }, '+ Add group') : null));
 
     const courtNos = Array.from({ length: state.clubCourts || 0 }, (_, i) => i + 1);
@@ -309,8 +360,8 @@
         el('label', {}, 'Courts at the club ',
           el('input', { type: 'number', min: 1, max: 40, class: 'small', value: state.clubCourts, disabled: locked,
             onchange: e => act(() => setClubCourts(+e.target.value)) })),
-        locked ? null : el('button', { class: 'link', onclick: () => act(() => { state.courts = courtNos.slice(); }) }, 'Select all'),
-        locked ? null : el('button', { class: 'link', onclick: () => act(() => { state.courts = []; }) }, 'Select none')),
+        locked ? null : el('button', { class: 'link', onclick: () => act(() => setCourts(courtNos)) }, 'Select all'),
+        locked ? null : el('button', { class: 'link', onclick: () => act(() => setCourts([])) }, 'Select none')),
       el('div', { class: 'court-toggles' }, courtNos.map(c => el('button', {
         class: 'court-btn' + (state.courts.includes(c) ? ' on' : ''), disabled: locked,
         title: `Court ${c}`, onclick: () => act(() => toggleCourt(c)),
@@ -319,14 +370,15 @@
 
     wrap.append(section('4. Rounds',
       el('label', {}, 'Number of rounds ',
-        el('input', { type: 'number', min: 1, max: 50, class: 'small', value: state.numRounds,
+        el('input', { type: 'number', min: 1, max: 50, class: 'small', value: state.numRounds, disabled: pLocked,
           onchange: e => act(() => setRounds(e.target.value)) }))));
 
-    if (locked) {
-      wrap.append(section('5. Start', el('p', {}, `Started with ${state.rounds.length} rounds.`),
+    if (state.started) {
+      wrap.append(section('5. Start',
+        !nConf && errs.length ? el('ul', { class: 'errors' }, errs.map(e => el('li', {}, e))) : null,
+        el('p', {}, `Running: ${state.rounds.length} rounds, ${nConf} confirmed.`),
         el('button', { class: 'primary', onclick: () => act(() => { state.ui.tab = 'rounds'; }) }, 'Go to Rounds')));
     } else {
-      const errs = startErrors();
       wrap.append(section('5. Start',
         errs.length ? el('ul', { class: 'errors' }, errs.map(e => el('li', {}, e))) : null,
         el('div', { class: 'row' },
@@ -338,7 +390,72 @@
 
   function goRound(i) {
     state.ui.roundIdx = Math.max(0, Math.min(i, state.rounds.length - 1));
+    selected = null; notice = null;
     save(); render();
+  }
+
+  // ---------- Current-round editing ----------
+  const teamOf = pid => state.teams.find(t => t.playerIds.includes(pid));
+  const sameUnit = (a, b) => a === b || (isTeams() && teamOf(a) != null && teamOf(a) === teamOf(b));
+
+  function pick(pid) {
+    if (!selected || sameUnit(selected, pid)) { selected = selected ? null : pid; notice = null; render(); return; }
+    const res = S.swapPlayers(state, state.ui.roundIdx, selected, pid);
+    act(() => {
+      if (res.error) { setNotice('error', res.error); selected = pid; return; }
+      state.rounds = res.rounds;
+      selected = null;
+    });
+  }
+  function renameSelected() {
+    const p = playerMap().get(selected);
+    const n = prompt(`Rename ${p.name} to:`, p.name);
+    if (n != null) act(() => renamePlayer(p.id, n));
+  }
+  function replaceSelected(idx) {
+    const old = playerMap().get(selected);
+    const raw = prompt(`Replace ${old.name} from round ${idx + 1} on. Name of the new player:`);
+    if (raw == null) return;
+    act(() => {
+      const n = norm(raw);
+      if (!n) return setNotice('error', 'Name cannot be empty.');
+      if (nameTaken(n)) return setNotice('error', `"${n}" is already taken.`);
+      const p = addPlayer(old.groupId, n);
+      old.absentFromRound = idx;
+      const sub = ids => ids.map(id => (id === old.id ? p.id : id));
+      const r = state.rounds[idx];
+      r.matches.forEach(m => { m.teamA = sub(m.teamA); m.teamB = sub(m.teamB); });
+      r.resting = sub(r.resting);
+      state.rounds = S.scheduleState(state, null, idx + 1); // keep this round, redo the later ones
+      selected = null;
+      setNotice('info', `${n} replaces ${old.name} from round ${idx + 1} on.`);
+    });
+  }
+  function absentSelected(idx) {
+    const p = playerMap().get(selected);
+    const who = isTeams() ? teamOf(p.id).playerIds.map(id => playerMap().get(id).name).join(' / ') : p.name;
+    if (!confirm(`Mark ${who} absent from round ${idx + 1} on? This round and later rounds are regenerated.`)) return;
+    act(() => {
+      p.absentFromRound = idx;
+      state.rounds = S.scheduleState(state);
+      selected = null;
+    });
+  }
+  function confirmCurrent(idx) {
+    act(() => {
+      const res = S.confirmRound(state, idx);
+      if (res.error) return setNotice('error', res.error);
+      state.rounds = res.rounds;
+      selected = null;
+      state.ui.roundIdx = Math.min(idx + 1, state.rounds.length - 1);
+    });
+  }
+  function regenerateSuggestion() {
+    act(() => {
+      state.seed = newSeed();
+      state.rounds = S.scheduleState(state);
+      selected = null;
+    });
   }
   function toggleFullscreen() {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -371,7 +488,15 @@
     const name = id => (pm.get(id) || { name: '?' }).name;
     const label = r => (r.status === 'confirmed' ? 'Confirmed' : 'Suggested');
 
+    const editIdx = S.editableIndex(state.rounds);
+    const editable = idx === editIdx && round.status === 'draft';
+    const isSel = id => selected != null && sameUnit(selected, id);
+    const pname = (id, cls) => (editable
+      ? el('button', { class: `pname ${cls || ''}${isSel(id) ? ' sel' : ''}`, onclick: () => pick(id) }, name(id))
+      : el('span', { class: cls || '' }, name(id)));
+
     const bar = el('div', { class: 'round-bar' },
+      el('button', { class: 'link back', onclick: () => act(() => { state.ui.tab = 'setup'; }) }, '← Setup'),
       el('button', { class: 'nav', disabled: idx === 0, title: 'Previous round (←)', onclick: () => goRound(idx - 1) }, '‹'),
       el('div', { class: 'pills' }, state.rounds.map((r, i) => el('button', {
         class: `pill ${r.status}${i === idx ? ' active' : ''}`, title: `Round ${i + 1}: ${label(r)}`,
@@ -383,13 +508,36 @@
     const title = el('h2', { class: 'round-title' }, `Round ${idx + 1} of ${state.rounds.length}`,
       el('span', { class: 'badge ' + round.status }, label(round)));
 
-    // Scores can be entered in every round for now (M4 restricts this to confirmed rounds).
+    // Scores only in confirmed rounds; names are clickable only in the current (editable) round.
     const team = (m, key, label) => {
-      const names = m[key === 'scoreA' ? 'teamA' : 'teamB'].map(name).join(' / ');
-      return el('div', { class: 'team-row' }, el('div', { class: 'tnames', title: names }, names),
-        scoreInput(m, key, label));
+      const ids = m[key === 'scoreA' ? 'teamA' : 'teamB'];
+      return el('div', { class: 'team-row' },
+        el('div', { class: 'tnames', title: ids.map(name).join(' / ') },
+          ids.map((id, i) => [i ? ' / ' : null, pname(id)])),
+        round.status === 'confirmed' ? scoreInput(m, key, label) : null);
     };
-    const cards = el('div', { class: 'courts' }, round.matches.map(m => {
+
+    let tools = null;
+    if (editable) {
+      const sp = selected && playerMap().get(selected);
+      tools = el('div', { class: 'edit-tools' },
+        el('div', { class: 'row' },
+          el('button', { class: 'primary', onclick: () => confirmCurrent(idx) }, `Confirm round ${idx + 1}`),
+          el('button', { onclick: regenerateSuggestion }, 'Regenerate suggestion'),
+          el('span', { class: 'muted' }, 'Click two players of the same group to swap them. Click one player for more options.')),
+        sp ? el('div', { class: 'row sel-bar' },
+          el('span', {}, 'Selected: ', el('strong', {}, isTeams() ? teamOf(sp.id).playerIds.map(name).join(' / ') : sp.name)),
+          el('button', { onclick: renameSelected }, `Rename ${sp.name}`),
+          isTeams() ? null : el('button', { onclick: () => replaceSelected(idx) }, 'Replace'),
+          el('button', { class: 'danger', onclick: () => absentSelected(idx) }, isTeams() ? 'Mark team absent' : 'Mark absent'),
+          el('button', { class: 'link', onclick: () => { selected = null; render(); } }, 'Cancel')) : null);
+    } else if (round.status === 'draft') {
+      tools = el('p', { class: 'muted' },
+        `Suggested only: confirm round ${editIdx + 1} first. This round is regenerated whenever an earlier round is confirmed.`);
+    }
+    const msg = notice && state.ui.tab === 'rounds' ? el('div', { class: 'notice ' + notice.kind }, notice.text) : null;
+
+    const cards = el('div', { class: 'courts' + (round.status === 'draft' ? ' draft' : '') }, round.matches.map(m => {
       const g = gm.get(m.groupId) || { name: '', color: '#888' };
       return el('div', { class: 'court', style: `--g:${g.color}` },
         el('div', { class: 'court-head' }, `Court ${m.court} — ${g.name}`),
@@ -402,9 +550,9 @@
     const resting = el('div', { class: 'resting' }, el('h3', {}, 'Resting'),
       groupsResting.length ? groupsResting.map(({ g, ids }) => el('div', { class: 'rest-group', style: `--g:${g.color}` },
         el('span', { class: 'rest-label' }, g.name),
-        ids.map(id => el('span', { class: 'chip' }, name(id))))) : el('p', { class: 'muted' }, 'Nobody rests this round.'));
+        ids.map(id => pname(id, 'chip')))) : el('p', { class: 'muted' }, 'Nobody rests this round.'));
 
-    return el('div', { class: 'rounds' }, bar, title, cards, resting);
+    return el('div', { class: 'rounds' }, bar, title, msg, tools, cards, resting);
   };
 
   const notStarted = () => el('div', { class: 'card empty' }, 'No rounds yet. Add players and courts in Setup, then press Start.');
@@ -479,13 +627,47 @@
       : state.groups.map(g => rankTable(g.name, g.color, R.computeRankings(state, g.id)));
     return el('div', { class: 'rankings' }, bar, tables);
   };
-  views.data = () => section('Data',
-    el('p', { class: 'muted' }, 'Export, import and the fairness report come in a later milestone.'),
-    el('button', { class: 'danger', onclick: () => act(() => {
-      if (confirm('Reset everything? All players, rounds and scores will be deleted.')) state = defaultState();
-    }) }, 'Reset'));
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = el('a', { href: url, download: `padel-americano-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function importJson(text) {
+    let data;
+    try { data = JSON.parse(text); } catch (e) { return setNotice('error', 'Import failed: not a valid JSON file.'); }
+    if (!data || !Array.isArray(data.players) || !Array.isArray(data.groups) || !Array.isArray(data.rounds)) {
+      return setNotice('error', 'Import failed: this is not a Padel Americano export.');
+    }
+    if (state.players.length && !confirm('Importing replaces the current tournament. Continue?')) return;
+    const ui = Object.assign(defaultState().ui, data.ui, { tab: 'data' });
+    state = Object.assign(defaultState(), data, { ui });
+    editing = false; selected = null;
+    setNotice('info', `Imported ${state.players.length} players and ${state.rounds.length} rounds.`);
+  }
+
+  views.data = () => {
+    const file = el('input', { type: 'file', accept: '.json,application/json', hidden: true,
+      onchange: e => { const f = e.target.files[0]; if (f) f.text().then(t => act(() => importJson(t))); } });
+    return el('div', {},
+      notice ? el('div', { class: 'notice ' + notice.kind }, notice.text) : null,
+      section('Data',
+        el('p', { class: 'muted' }, 'Everything is saved automatically in this browser. Export a JSON file as a backup or to move to another laptop.'),
+        el('div', { class: 'row' },
+          el('button', { onclick: exportJson }, 'Export JSON'),
+          el('button', { onclick: () => file.click() }, 'Import JSON'), file,
+          el('button', { class: 'danger', onclick: () => act(() => {
+            if (!confirm('Reset everything? All players, rounds and scores will be deleted.')) return;
+            state = defaultState(); state.ui.tab = 'data';
+            editing = false; selected = null;
+          }) }, 'Reset'))),
+      state.started && state.rounds.length ? section('Fairness report (all rounds, including suggested)',
+        el('pre', { class: 'fair' }, S.formatFairness(S.fairnessReport(state)))) : null);
+  };
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && selected) { selected = null; render(); return; }
     if (state.ui.tab !== 'rounds' || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();

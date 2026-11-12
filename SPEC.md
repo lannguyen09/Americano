@@ -32,6 +32,17 @@ Americano or Americano Teams tournament for 12–100 players. English UI.
 5. Start → round 1 (draft) + suggestions for all remaining rounds.
 6. "Load demo (69 players)" button for testing.
 
+### Tournament control (while running)
+Setup tab shows a "Tournament running" banner with 3 buttons (setup is read-only otherwise):
+1. "Edit setup": unlocks players, courts, group allocation and number of rounds.
+   While no round is confirmed everything may change (court allocation is recomputed).
+   Once a round is confirmed, mode and courts stay locked (banner says why);
+   players and rounds can still change. Any change regenerates the Suggested rounds only.
+2. "Restart tournament": keeps players and settings, deletes all rounds and scores
+   (absences cleared, back to Start). Confirmation dialog.
+3. "New tournament": clears everything. Confirmation dialog.
+Rounds tab has a small "← Setup" link.
+
 ## Scheduling (core)
 Each group is scheduled independently with its own courts. Per round:
 1. Resters = n − 4*courts (teams: t − 2*courts). Pick resters so that total rests per
@@ -53,6 +64,10 @@ Each group is scheduled independently with its own courts. Per round:
 - Click two players to swap them (between matches, within a match, or with a resting player,
   same group only).
 - Replace/rename a player; mark a player absent (excluded from this and later rounds).
+  Replace = new player takes the spot from this round on (old one marked absent, keeps results);
+  not offered in teams mode (rename the member instead; the team keeps its results).
+  Mark absent regenerates this round too (manual swaps in it are lost).
+- Later Suggested rounds are read-only (dashed), no score entry until confirmed.
 - "Confirm round" locks the lineup, regenerates all later drafts, enables score entry.
 - "Regenerate suggestion" gives a different draft (new seed).
 - Scores of confirmed rounds stay editable.

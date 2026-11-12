@@ -390,17 +390,78 @@
   }
 
   // Regenerates all draft rounds from the confirmed history. Returns a new rounds array.
-  function scheduleState(state, seed) {
+  // keepUntil (optional): keep rounds[0..keepUntil) as history (e.g. an edited draft) instead.
+  function scheduleState(state, seed, keepUntil) {
+    const rounds = state.rounds || [];
     return scheduleRounds({
       mode: state.mode,
       numRounds: state.numRounds,
       seed: seed == null ? state.seed : seed,
-      history: confirmedPrefix(state.rounds || []),
+      history: keepUntil == null ? confirmedPrefix(rounds) : rounds.slice(0, keepUntil),
       groups: state.groups.map(g => ({
         id: g.id,
         courts: (state.courtAssignment && state.courtAssignment[g.id]) || [],
         units: unitsForGroup(state, g.id),
       })),
+    });
+  }
+
+  // ---- Round editing ----
+  // Only the first draft round (directly after the confirmed prefix) can be edited.
+  const editableIndex = rounds => confirmedPrefix(rounds).length;
+
+  function roundOf(round, pid) {
+    if (round.resting.includes(pid)) return true;
+    return round.matches.some(m => m.teamA.includes(pid) || m.teamB.includes(pid));
+  }
+
+  // Swap players a and b (teams mode: their whole teams) in rounds[idx].
+  // Returns {error} or {rounds} (new array; the edited round is a copy).
+  function swapPlayers(state, idx, a, b) {
+    const rounds = state.rounds || [];
+    const round = rounds[idx];
+    if (!round || round.status !== 'draft' || idx !== editableIndex(rounds)) {
+      return { error: 'Only the current (first suggested) round can be edited.' };
+    }
+    if (a === b) return { error: 'Select two different players.' };
+    const pm = new Map(state.players.map(p => [p.id, p]));
+    const pa = pm.get(a), pb = pm.get(b);
+    if (!pa || !pb || !roundOf(round, a) || !roundOf(round, b)) return { error: 'Both players must be in this round.' };
+    if (pa.groupId !== pb.groupId) return { error: 'Players can only be swapped within the same group.' };
+    let pairs = [[a, b]];
+    if (state.mode === 'teams') {
+      const team = id => state.teams.find(t => t.playerIds.includes(id));
+      const ta = team(a), tb = team(b);
+      if (!ta || !tb) return { error: 'Team not found.' };
+      if (ta === tb) return { error: 'These players are in the same team.' };
+      pairs = ta.playerIds.map((id, i) => [id, tb.playerIds[i]]);
+    }
+    const swap = new Map();
+    for (const [x, y] of pairs) { swap.set(x, y); swap.set(y, x); }
+    const sub = ids => ids.map(id => (swap.has(id) ? swap.get(id) : id));
+    const copy = Object.assign({}, round, {
+      matches: round.matches.map(m => Object.assign({}, m, { teamA: sub(m.teamA), teamB: sub(m.teamB) })),
+      resting: sub(round.resting),
+    });
+    const out = rounds.slice();
+    out[idx] = copy;
+    return { rounds: out };
+  }
+
+  // Confirm rounds[idx] (must be the first draft) and regenerate all later drafts from it.
+  function confirmRound(state, idx) {
+    const rounds = (state.rounds || []).slice();
+    if (!rounds[idx] || idx !== editableIndex(rounds)) return { error: 'Only the current round can be confirmed.' };
+    rounds[idx] = Object.assign({}, rounds[idx], { status: 'confirmed' });
+    return { rounds: scheduleState(Object.assign({}, state, { rounds })) };
+  }
+
+  // Restart: keep players and settings, delete rounds and scores, clear absences.
+  function restartTournament(state) {
+    return Object.assign({}, state, {
+      started: false,
+      rounds: [],
+      players: state.players.map(p => Object.assign({}, p, { absentFromRound: null })),
     });
   }
 
@@ -464,6 +525,7 @@
     W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
     makeRng, unitsPerCourt, allocateCourts, groupLoad,
     scheduleRounds, scheduleState, unitsForGroup, confirmedPrefix,
+    editableIndex, swapPlayers, confirmRound, restartTournament,
     fairnessReport, formatFairness,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

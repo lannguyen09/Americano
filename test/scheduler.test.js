@@ -234,6 +234,76 @@ test('more rounds than combinations: 4 players / 1 court / 10 rounds does not cr
   assert.strictEqual(r.repeatedPartnerships, 14);
 });
 
+const partnerKeys = r => r.matches.flatMap(m => [m.teamA, m.teamB]).map(t => t.slice().sort().join('+'));
+
+test('confirm (after a swap) → later rounds regenerate without repeating confirmed partners', () => {
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const st = makeState({ groups: [['A', 12]], courts: 3, numRounds: 5, seed });
+    st.rounds = S.scheduleState(st);
+    const m0 = st.rounds[0].matches[0], m1 = st.rounds[0].matches[1];
+    const sw = S.swapPlayers(st, 0, m0.teamA[0], m1.teamB[1]);
+    assert.ok(!sw.error, sw.error);
+    st.rounds = sw.rounds;
+    const before = st.rounds.slice(1).map(r => JSON.stringify(r.matches));
+    const res = S.confirmRound(st, 0);
+    assert.ok(!res.error, res.error);
+    assert.strictEqual(res.rounds[0].status, 'confirmed');
+    assert.deepStrictEqual(res.rounds[0].matches, st.rounds[0].matches);
+    assert.ok(res.rounds.slice(1).every(r => r.status === 'draft'));
+    assert.notDeepStrictEqual(res.rounds.slice(1).map(r => JSON.stringify(r.matches)), before);
+    checkValidity(st, res.rounds);
+    const confirmed = new Set(partnerKeys(res.rounds[0]));
+    for (const r of res.rounds.slice(1)) for (const k of partnerKeys(r)) assert.ok(!confirmed.has(k), `repeat ${k}`);
+    assert.strictEqual(S.confirmRound({ ...st, rounds: res.rounds }, 2).error != null, true, 'skip ahead');
+  }
+});
+
+test('swap validation: same group only, current draft only, teams not with own partner', () => {
+  const st = makeState({ groups: [['A', 12], ['B', 12]], courts: 6, numRounds: 3 });
+  st.rounds = S.scheduleState(st);
+  const inGroup = (r, g) => r.matches.filter(m => m.groupId === g).flatMap(m => m.teamA.concat(m.teamB));
+  const [a1, a2] = [inGroup(st.rounds[0], 'g0')[0], inGroup(st.rounds[0], 'g0')[5]];
+  const b1 = inGroup(st.rounds[0], 'g1')[0];
+  assert.match(S.swapPlayers(st, 0, a1, b1).error, /same group/);
+  assert.ok(S.swapPlayers(st, 1, a1, a2).error, 'later draft is read-only');
+  const ok = S.swapPlayers(st, 0, a1, a2);
+  assert.ok(!ok.error);
+  checkValidity(st, ok.rounds);
+  const confirmed = S.confirmRound(st, 0).rounds;
+  assert.ok(S.swapPlayers({ ...st, rounds: confirmed }, 0, a1, a2).error, 'confirmed is read-only');
+  // swap with a resting player
+  const st2 = makeState({ groups: [['A', 13]], courts: 3, numRounds: 2 });
+  st2.rounds = S.scheduleState(st2);
+  const rest = st2.rounds[0].resting[0], play = st2.rounds[0].matches[2].teamB[0];
+  const r2 = S.swapPlayers(st2, 0, rest, play).rounds[0];
+  assert.deepStrictEqual(r2.resting, [play]);
+  assert.ok(r2.matches[2].teamB.includes(rest));
+  // teams mode
+  const tm = makeState({ groups: [['T', 8]], mode: 'teams', courts: 3, numRounds: 2 });
+  tm.rounds = S.scheduleState(tm);
+  assert.match(S.swapPlayers(tm, 0, 'p0', 'p1').error, /same team/);
+  const tr = S.swapPlayers(tm, 0, 'p0', 'p3').rounds;
+  checkValidity(tm, tr);
+  for (const r of tr) for (const m of r.matches) for (const t of [m.teamA, m.teamB]) {
+    assert.ok(tm.teams.some(x => x.playerIds.join() === t.join()), 'teams stay intact');
+  }
+});
+
+test('restart keeps players and settings, deletes rounds and scores', () => {
+  const st = makeState({ groups: [['A', 12]], courts: 3, numRounds: 4 });
+  st.started = true;
+  st.players[3].absentFromRound = 2;
+  st.rounds = S.confirmRound({ ...st, rounds: S.scheduleState(st) }, 0).rounds;
+  st.rounds[0].matches[0].scoreA = 6;
+  const r = S.restartTournament(st);
+  assert.strictEqual(r.started, false);
+  assert.deepStrictEqual(r.rounds, []);
+  assert.deepStrictEqual(r.players.map(p => p.name), st.players.map(p => p.name));
+  assert.ok(r.players.every(p => p.absentFromRound == null));
+  assert.deepStrictEqual([r.mode, r.numRounds, r.courts, r.groups], [st.mode, st.numRounds, st.courts, st.groups]);
+  assert.strictEqual(st.rounds.length, 4, 'input not mutated');
+});
+
 if (ref69) {
   console.log('\nFairness report — reference 69 players, 9 courts, 6 rounds:');
   console.log(S.formatFairness(ref69));
