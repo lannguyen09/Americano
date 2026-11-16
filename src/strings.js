@@ -157,7 +157,7 @@
       'rounds.fullscreen': 'Fullscreen',
       'rounds.exitFullscreen': 'Exit fullscreen',
       'rounds.title': 'Round {n} of {total}',
-      'rounds.confirm': 'Confirm round {n}',
+      'rounds.confirm': 'Confirm round',
       'rounds.regenerate': 'Regenerate suggestion',
       'rounds.editHint': 'Click two players of the same group to swap them. Click one player for more options.',
       'rounds.selected': 'Selected: ',

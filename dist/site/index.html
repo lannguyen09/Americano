@@ -1,0 +1,2615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PadelNext Americano</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0B1F5C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PadelNext">
+<script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js'));</script>
+<style>/* Neutral generic theme. A club theme (theme/<club>.json) overrides these at build time.
+   These definitions are the only colour literals allowed in style.css. */
+:root {
+  --brand: #1f6feb;          /* primary buttons, active tab */
+  --brand-contrast: #ffffff; /* text on --brand (and on dark group colours) */
+  --brand-soft: #eef4ff;     /* light tint of --brand (hover, selected option) */
+  --surface: #ffffff;        /* cards, inputs */
+  --text: #1b1f24;           /* body text (and text on light group colours) */
+  --accent: #ffd84d;         /* highlight: selected player */
+  --bg: #f5f6f8;
+  --muted: #5f6b7a;
+  --line: #d9dee5;
+  --group-1: #1f6feb;
+  --group-2: #1a7f37;
+  --group-3: #c2410c;
+  --group-4: #8250df;
+  --danger: #b42318;
+  --danger-bg: #fdecea;
+  --danger-text: #8a1c12;
+  --info-bg: #e7f0ff;
+  --info-text: #0b3d91;
+  --warn-bg: #fff4d6;
+  --warn-border: #e8c766;
+  --warn-line: #c98a00;
+  --warn-text: #7a4d00;
+  --ok-bg: #dcf5e3;
+  --ok-text: #11602b;
+  --gold: #ffe9a8;
+  --silver: #e6e9ee;
+  --bronze: #f4d6bd;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+.topbar {
+  display: flex; align-items: center; gap: 24px;
+  padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.topbar h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.topbar .logo { height: 36px; width: auto; max-width: 100%; object-fit: contain; }
+.topbar .subtitle { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: .04em; }
+#tabs { display: flex; gap: 4px; }
+#tabs button {
+  font: inherit; padding: 8px 16px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+#tabs button.active { background: var(--brand); color: var(--brand-contrast); }
+main { padding: 20px; max-width: 1800px; margin: 0 auto; }
+
+/* ---------- Generic ---------- */
+button {
+  font: inherit; padding: 7px 14px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--text); cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--brand); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-contrast); font-weight: 600; }
+button.danger { color: var(--danger); }
+button.link { border: 0; background: none; color: var(--brand); padding: 4px 6px; }
+button.link.danger { color: var(--danger); }
+input, textarea {
+  font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--text);
+}
+input.small { width: 90px; }
+textarea { width: 100%; resize: vertical; }
+.muted { color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 16px 20px; margin-bottom: 16px;
+}
+.card h2 { font-size: 18px; margin: 0 0 12px; }
+.card.empty { font-size: 20px; color: var(--muted); }
+.notice { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+.notice.info { background: var(--info-bg); color: var(--info-text); }
+.notice.error { background: var(--danger-bg); color: var(--danger-text); }
+.errors { color: var(--danger-text); margin: 0 0 12px; padding-left: 20px; }
+.swatch {
+  display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+  background: var(--g); margin-right: 8px; vertical-align: middle;
+}
+
+/* ---------- Setup ---------- */
+.opts { display: flex; flex-wrap: wrap; gap: 10px; }
+.opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 16px; text-align: left; }
+.opt span { font-size: 14px; color: var(--muted); }
+.opt.active { border: 2px solid var(--brand); background: var(--brand-soft); }
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; margin-bottom: 12px; }
+.group { border: 1px solid var(--line); border-top: 4px solid var(--g); border-radius: 8px; padding: 12px; }
+.group-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.group-name { font-weight: 600; flex: 1; min-width: 0; }
+.paste { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 10px; }
+.paste textarea { width: 100%; box-sizing: border-box; }
+.paste-errs { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.paste-err { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px;
+  background: var(--danger-bg); color: var(--danger-text); border-left: 4px solid var(--danger); }
+.paste-line { font-weight: 600; white-space: nowrap; }
+.paste-why { flex: 1; font-size: 14px; }
+.paste-err button { padding: 2px 10px; font-size: 14px; white-space: nowrap; }
+.check-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.check-search { flex: 1; min-width: 120px; }
+.check-counts { font-size: 14px; }
+.checklist { display: grid; grid-template-columns: minmax(90px, 1fr) auto auto; gap: 3px 6px; align-items: center; max-height: 420px; overflow: auto; }
+.checklist.teams { grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) auto auto; }
+.check-head, .check-row { display: contents; }
+.check-head span { font-size: 13px; font-weight: 600; color: var(--muted); }
+.check-name { min-width: 0; padding: 3px 6px; font-size: 14px; white-space: nowrap; text-overflow: ellipsis; }
+.check-row.st-absent .check-name, .check-row.absent .check-name { color: var(--muted); text-decoration: line-through; }
+.check-row.st-pending .check-name { color: var(--muted); }
+.check-row .x { border: 0; background: none; color: var(--muted); padding: 2px 6px; }
+.check-row .x:hover { color: var(--danger); }
+.st-chips { display: flex; flex-wrap: wrap; gap: 2px; }
+.st-chip { padding: 2px 7px; font-size: 12px; border-radius: 12px; white-space: nowrap; color: var(--muted); }
+.st-chip.on.st-pending { background: var(--line); color: var(--text); }
+.st-chip.on.st-present { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-text); }
+.st-chip.on.st-late { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-line); }
+.st-chip.on.st-absent { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger); }
+.notice.warn { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
+.court-toggles { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.court-btn { width: 44px; padding: 7px 0; }
+.court-btn.on { background: var(--brand); border-color: var(--brand); color: var(--brand-contrast); }
+table.alloc { border-collapse: collapse; margin-top: 8px; }
+table.alloc th, table.alloc td { padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line); text-align: left; }
+table.alloc th { font-size: 14px; color: var(--muted); font-weight: 500; }
+table.alloc td.num { text-align: right; }
+
+/* ---------- Rounds (projector) ---------- */
+.round-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.round-bar .nav { font-size: 24px; line-height: 1; padding: 6px 14px; }
+.pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.pill { min-width: 42px; padding: 6px 10px; border-style: dashed; color: var(--muted); }
+.pill.confirmed { border-style: solid; color: var(--text); font-weight: 600; }
+.pill.active { background: var(--text); border-color: var(--text); color: var(--surface); }
+.fs-btn { margin-left: auto; }
+.round-title { display: flex; align-items: center; gap: 14px; font-size: clamp(24px, 2.4vw, 44px); margin: 4px 0 16px; }
+.badge { font-size: .5em; padding: 4px 12px; border-radius: 999px; font-weight: 600; }
+.badge.draft { background: var(--warn-bg); color: var(--warn-text); border: 1px dashed var(--warn-line); }
+.badge.confirmed { background: var(--ok-bg); color: var(--ok-text); }
+.courts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 14px; }
+.court {
+  background: var(--surface); border: 2px solid var(--g); border-radius: 12px; overflow: hidden;
+  container-type: inline-size;
+}
+.court-head {
+  background: var(--g); color: var(--g-text, var(--brand-contrast)); font-weight: 700;
+  font-size: clamp(18px, 1.5vw, 30px); padding: 8px 14px;
+}
+/* Name size follows card width (cqi): ~24px on a 450px card (4 per row at 1920). */
+.team-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; }
+.tnames {
+  flex: 1; min-width: 0; font-weight: 600; line-height: 1.2;
+  font-size: clamp(16px, 5.4cqi, 40px);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vs {
+  display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  color: var(--muted); font-size: clamp(13px, 3cqi, 22px); line-height: 1;
+}
+.vs::before, .vs::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+.resting { margin-top: 20px; }
+.resting h3 { font-size: clamp(20px, 1.6vw, 32px); margin: 0 0 8px; }
+.rest-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.rest-label { color: var(--g); font-weight: 700; font-size: clamp(16px, 1.3vw, 28px); margin-right: 6px; }
+.chip {
+  background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--g);
+  border-radius: 6px; padding: 3px 10px; font-size: clamp(16px, 1.3vw, 28px); white-space: nowrap;
+}
+input.score {
+  flex: none; width: 2.6em; text-align: center; font-weight: 700; padding: 2px;
+  font-size: clamp(20px, 6cqi, 40px); -moz-appearance: textfield;
+}
+input.score::-webkit-inner-spin-button, input.score::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input.score.invalid { border-color: var(--danger); background: var(--danger-bg); }
+
+/* ---------- Find player ---------- */
+.find-search { width: min(420px, 100%); font-size: clamp(18px, 1.4vw, 28px); padding: 8px 12px; margin-bottom: 14px; }
+.find-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; }
+.find-item {
+  display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+  background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--g);
+  border-radius: 6px; padding: 6px 12px; font-size: clamp(18px, 1.4vw, 30px);
+}
+.find-name { font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find-where { font-weight: 700; white-space: nowrap; }
+.find-where.off { color: var(--muted); font-weight: 500; }
+
+/* ---------- Rankings (projector) ---------- */
+.rank-bar { margin-bottom: 12px; }
+.rank-bar button.active { background: var(--text); border-color: var(--text); color: var(--surface); }
+.rank-card h2 { font-size: clamp(20px, 1.8vw, 36px); }
+table.rank { width: 100%; border-collapse: collapse; font-size: clamp(16px, 1.4vw, 30px); }
+table.rank th, table.rank td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+table.rank th { font-size: .65em; color: var(--muted); font-weight: 500; }
+table.rank .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.rank td.rname { font-weight: 600; }
+table.rank td.strong { font-weight: 700; }
+:fullscreen .topbar { display: none; }
+
+/* ---------- Tournament control & round editing ---------- */
+.banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
+}
+.round-bar .back { font-size: 16px; }
+.courts.draft .court { border-style: dashed; }
+.court .waiting { font-style: italic; color: var(--warn-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.late-slot { font-style: italic; color: var(--muted); white-space: nowrap; }
+.late-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip.late { opacity: 0.65; border-style: dashed; cursor: default; }
+button.chip.late { cursor: pointer; }
+.late-dialog { border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; min-width: min(420px, 90vw); }
+.late-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; white-space: nowrap; }
+.edit-tools { margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+.sel-bar { background: var(--warn-bg); border-radius: 8px; padding: 8px 12px; }
+button.pname { font: inherit; color: inherit; cursor: pointer; border-radius: 4px; }
+button.pname:not(.chip) { border: 0; background: none; padding: 0 2px; font-weight: inherit; }
+button.pname:hover { background: var(--brand-soft); }
+button.pname.sel { background: var(--accent); outline: 3px solid var(--warn-line); }
+pre.fair { overflow-x: auto; font-size: 14px; margin: 0; }
+
+/* ---------- Projector polish (M5) ---------- */
+.round-bar .nav.next { font-size: 18px; padding: 8px 16px; font-weight: 600; white-space: nowrap; }
+.court-head, .round-title, .rest-label, .rank-card h2 { overflow-wrap: normal; word-break: normal; }
+.court-head { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table.rank th, table.rank td { white-space: nowrap; }
+table.rank td.rname { max-width: 18em; overflow: hidden; text-overflow: ellipsis; }
+.final-btn { margin-left: auto; }
+
+/* ---------- Final standings overlay ---------- */
+.final-overlay {
+  position: fixed; inset: 0; z-index: 100; overflow: auto;
+  background: var(--bg); padding: 2vh 2vw;
+}
+.final-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 2vh; }
+.final-head h1 { margin: 0; font-size: clamp(32px, 3.6vw, 72px); }
+.final-close { font-size: clamp(24px, 2vw, 40px); line-height: 1; padding: 8px 18px; }
+.final-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(560px, 100%), 1fr)); gap: 2vw; align-items: start; }
+.fs-group { background: var(--surface); border: 3px solid var(--g); border-radius: 14px; overflow: hidden; }
+.fs-group h2 { margin: 0; padding: 10px 18px; background: var(--g); color: var(--g-text, var(--brand-contrast)); font-size: clamp(28px, 2.6vw, 52px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: clamp(24px, 2.1vw, 44px); }
+.fs-table th, .fs-table td { padding: .2em .5em; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.fs-table th { font-size: .6em; color: var(--muted); font-weight: 500; }
+.fs-table .num { text-align: right; font-variant-numeric: tabular-nums; width: 1%; }
+.fs-table td.fs-name { font-weight: 600; max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.fs-table td.strong { font-weight: 800; }
+.fs-table tr.top td { font-size: 1.2em; font-weight: 800; }
+.fs-table tr.top1 { background: var(--gold); }
+.fs-table tr.top2 { background: var(--silver); }
+.fs-table tr.top3 { background: var(--bronze); }
+
+/* ---------- Floorplan (M9) ---------- */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 6px 12px; }
+.seg button.active { background: var(--brand); color: var(--brand-contrast); }
+.floor { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.floor-grid { display: grid; gap: 12px; }
+.fcourt {
+  position: relative; display: flex; flex-direction: column; justify-content: center; min-width: 0;
+  background: var(--g, var(--surface)); color: var(--g-text, var(--text));
+  border: 2px solid var(--g, var(--line)); border-radius: 12px; overflow: hidden; container-type: inline-size;
+}
+.fcourt.edge { box-shadow: inset 0 0 0 4px var(--edge); }
+.fcourt.unused { background: var(--surface); color: var(--muted); border: 2px dashed var(--line); filter: grayscale(1); }
+.fcourt.unused.tinted { background: var(--g); color: var(--g-text); border-color: var(--line); filter: none; }
+.group-badge {
+  display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; vertical-align: middle;
+  background: var(--g); color: var(--g-text); border: 1px solid var(--surface); font-size: .7em;
+}
+.final-head h1 { display: flex; align-items: center; gap: .4em; }
+.final-head .ring { height: 1em; width: auto; }
+.fcourt-head { font-weight: 700; padding: 6px 12px; font-size: clamp(14px, 5cqi, 26px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fcourt-unused { padding: 6px 12px 12px; font-size: clamp(14px, 5cqi, 24px); }
+.fcourt .vs::before, .fcourt .vs::after { border-color: currentColor; opacity: .4; }
+.fcourt .tnames { font-size: clamp(14px, 6cqi, 36px); }
+.fcourt .late-slot { color: inherit; opacity: .75; }
+.fcourt .late-actions { padding: 0 12px 10px; }
+.fcourt.pending {
+  background: repeating-linear-gradient(135deg, var(--g) 0 14px, color-mix(in srgb, var(--g) 70%, var(--surface)) 14px 28px);
+  border-style: dashed;
+}
+.rounds-floor.draft .fcourt:not(.unused) { border-style: dashed; }
+.court-badge {
+  position: absolute; top: 6px; right: 6px; font-size: 11px; font-weight: 800; letter-spacing: .05em;
+  padding: 1px 6px; border-radius: 4px; background: var(--surface); color: var(--text); border: 1px solid var(--line);
+}
+.setup-floor { max-width: 560px; }
+.fcourt.setup { min-height: 72px; align-items: flex-start; gap: 2px; padding: 8px 12px; text-align: left; cursor: pointer; font: inherit; }
+.fcourt.setup span { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.fcourt.setup:disabled { cursor: default; }
+.reception { align-self: center; font-weight: 700; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; font-size: 14px; }
+.nm[data-fitted] { cursor: help; }
+
+/* ---------- Scores, dots, help (M10) ---------- */
+[hidden] { display: none !important; }
+input.score:focus { border-color: var(--brand); outline: 3px solid var(--accent); outline-offset: 0; }
+.team-row.win .tnames { font-weight: 800; }
+.team-row.lose .tnames { font-weight: 400; opacity: .6; }
+.dots { display: inline-flex; gap: 3px; flex-wrap: nowrap; vertical-align: middle; }
+.dot { width: .6em; height: .6em; min-width: 8px; min-height: 8px; border-radius: 50%; background: var(--line); }
+.dot.played { background: var(--ok-text); }
+.dot.rested { background: var(--danger); }
+.dot.absent { background: var(--line); }
+.dot.suggested { opacity: .35; }
+button.find-item { font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; align-items: center; }
+.find-item .dots { margin-left: auto; }
+.nm.found, button.pname.found { background: var(--accent); color: var(--text); border-radius: 4px; outline: 2px solid var(--brand); }
+.help { margin: -4px 0 12px; color: var(--muted); font-size: 14px; }
+.help-btn { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; padding: 0; font-weight: 800; }
+.help-dialog p, .tour-dialog p { max-width: 48ch; }
+#tabs { flex: 1; align-items: center; }
+</style>
+<style>:root {
+  --brand: #0B1F5C;
+  --brand-contrast: #FFFFFF;
+  --brand-soft: #E8ECF7;
+  --text: #0B1F5C;
+  --accent: #F7E84B;
+  --group-1: #1F3FBF;
+  --group-2: #E0489B;
+  --group-3: #E5561E;
+  --group-4: #FFD700;
+}</style>
+</head>
+<body>
+<header class="topbar">
+  <h1></h1>
+  <nav id="tabs"></nav>
+</header>
+<main id="view"></main>
+<script>window.THEME = {"name":"padelnext","clubName":"PadelNext","title":"PadelNext Americano","logos":{},"floorplan":{"rows":3,"cols":3,"numbering":"bottom-left-rows","reception":"bottom","tags":{"2":{"badge":"WPT"},"5":{"badge":"WPT"},"8":{"badge":"WPT"}},"courtColors":{"1":"#FF69B4","2":"#0047AB","3":"#1434A4","4":"#1434A4","5":"#0047AB","6":"#FF69B4","7":"#FF69B4","8":"#0047AB","9":"#1434A4"}},"compactPalette":["#1F3FBF","#E0489B","#E5561E","#FFD700"]};</script>
+<script>/* Padel Americano — all UI text. One table per language; t(key, vars) fills {placeholders}. */
+(function (root) {
+  'use strict';
+
+  const STRINGS = {
+    en: {
+      'app.title': 'Padel Americano',
+      'app.subtitle': 'Americano',
+      'rounds.shuffleColours': 'Shuffle colours',
+
+      'tab.setup': 'Setup',
+      'tab.rounds': 'Rounds',
+      'tab.find': 'Find player',
+      'tab.rankings': 'Rankings',
+      'tab.data': 'Data',
+
+      'unit.players': 'players',
+      'unit.teams': 'teams',
+      'unit.Players': 'Players',
+      'unit.Teams': 'Teams',
+
+      'common.remove': 'Remove',
+      'common.cancel': 'Cancel',
+      'status.confirmed': 'Confirmed',
+      'status.draft': 'Suggested',
+      'court.n': 'Court {n}',
+
+      // Errors and notices
+      'err.setupInvalid': 'Suggested rounds are cleared until the setup is valid: {errors}',
+      'err.noGroup': 'Add at least one group.',
+      'err.noCourt': 'Select at least one court.',
+      'err.noRounds': 'Set the number of rounds.',
+      'err.groupNameEmpty': 'Group name cannot be empty.',
+      'err.groupExists': 'Group "{name}" already exists.',
+      'err.nameEmpty': 'Name cannot be empty.',
+      'err.nameTaken': '"{name}" is already taken.',
+      'err.removePlayed': 'Already played in a confirmed round, so this cannot be removed.',
+      'err.roundsRange': 'Number of rounds must be between {min} and 50.',
+      'err.importJson': 'Import failed: not a valid JSON file.',
+      'err.importFormat': 'Import failed: this is not a Padel Americano export.',
+      'paste.format': 'Not two names. Use Name1 / Name2 (or & + Tab).',
+      'paste.sameTwice': 'Same name twice in one team.',
+      'paste.taken': '"{name}" is already in the tournament.',
+      'paste.dupInList': '"{name}" appears earlier in this list.',
+      'paste.addAs': 'Add as {name}',
+      'paste.import': 'Import CSV…',
+      'paste.importTitle': 'CSV or Excel export with columns: name, level (optional)',
+      'info.restarted': 'Tournament restarted. Check the setup and press Start.',
+      'info.demoLoaded': 'Demo loaded: 21 Advanced + 48 Beginner, 9 courts, 6 rounds. Press Start.',
+      'info.replaced': '{new} replaces {old} from round {n} on.',
+      'info.imported': 'Imported {players} players and {rounds} rounds.',
+
+      // Confirm / prompt dialogs
+      'confirm.switchMode': 'Switching mode removes all players. Continue?',
+      'confirm.removeGroup': 'Remove this group and its {n} {unit}?',
+      'confirm.restart': 'Restart the tournament? All rounds and scores are deleted. Players and settings are kept.',
+      'confirm.newTournament': 'Start a new tournament? Everything (players, settings, rounds and scores) is deleted.',
+      'confirm.loadDemo': 'Loading the demo replaces all current players and settings. Continue?',
+      'confirm.absent': 'Mark {who} absent from round {n} on? This round and later rounds are regenerated.',
+      'confirm.import': 'Importing replaces the current tournament. Continue?',
+      'confirm.reset': 'Reset everything? All players, rounds and scores will be deleted.',
+      'prompt.rename': 'Rename {name} to:',
+      'prompt.replace': 'Replace {name} from round {n} on. Name of the new player:',
+
+      // Setup
+      'group.default': 'Group {n}',
+      'demo.advanced': 'Advanced',
+      'demo.beginner': 'Beginner',
+      'banner.running': 'Tournament running',
+      'banner.locked': 'Setup is locked. Use "Edit setup" to change players, courts or rounds.',
+      'banner.lockedConfirmed1': 'Mode and courts are locked because 1 round is confirmed. ',
+      'banner.lockedConfirmedN': 'Mode and courts are locked because {n} rounds are confirmed. ',
+      'banner.lockedRest': 'Players and number of rounds can still change; only the suggested rounds are regenerated.',
+      'banner.free': 'No round is confirmed yet, so everything can be changed. Suggested rounds are regenerated on every change.',
+      'banner.fixErrors': 'Fix the setup errors first',
+      'banner.done': 'Done editing',
+      'banner.edit': 'Edit setup',
+      'banner.restart': 'Restart tournament',
+      'banner.new': 'New tournament',
+      'setup.mode': '1. Mode',
+      'mode.americano': 'Americano',
+      'mode.americanoSub': 'Individual, partners change every round',
+      'mode.teams': 'Americano Teams',
+      'mode.teamsSub': 'Fixed pairs play against other pairs',
+      'setup.players': '2. Players',
+      'setup.groupsHint': 'Groups are levels (e.g. Advanced, Beginner), 1–4 groups. Each group plays on its own courts.',
+      'setup.addGroup': '+ Add group',
+      'setup.removeGroup': 'Remove group',
+      'setup.addTeams': 'Add teams',
+      'setup.addPlayers': 'Add players',
+      'setup.pasteTeams': 'One team per line: Name1 / Name2',
+      'setup.pastePlayers': 'One name per line (paste from Excel works)',
+      'setup.player1': 'Player 1',
+      'setup.player2': 'Player 2',
+      'setup.status': 'Status',
+      'setup.search': 'Search…',
+      'setup.markAll': 'Mark all present',
+      'status.pending': 'Not checked in',
+      'status.present': 'Present',
+      'status.late': 'Late',
+      'status.absent': 'Absent',
+      'start.notChecked': '{n} {unit} not checked in: they are excluded from the schedule.',
+      'setup.absentFrom': 'Absent from round {n}',
+      'setup.courts': '3. Courts',
+      'setup.clubCourts': 'Courts at the club ',
+      'setup.selectAll': 'Select all',
+      'setup.selectNone': 'Select none',
+      'setup.rounds': '4. Rounds',
+      'setup.numRounds': 'Number of rounds ',
+      'setup.start': '5. Start',
+      'setup.runningInfo': 'Running: {rounds} rounds, {confirmed} confirmed.',
+      'setup.goRounds': 'Go to Rounds',
+      'setup.startBtn': 'Start',
+      'setup.loadDemo': 'Load demo (69 players)',
+      'alloc.group': 'Group',
+      'alloc.courts': 'Courts',
+      'alloc.override': 'Override',
+      'alloc.courtNumbers': 'Court numbers',
+      'alloc.playing': 'Playing / round',
+      'alloc.resting': 'Resting / round',
+      'alloc.auto': 'auto',
+      'alloc.unused': 'Unused courts: {list}',
+      'alloc.hint': 'Courts are assigned automatically by group size. Type a number to override.',
+      'alloc.floorHint': 'Click a court to give it to the next group (click again to cycle; last click = not used).',
+      'alloc.manual': 'Courts assigned by hand on the floorplan.',
+      'alloc.autoBtn': 'Back to automatic',
+      'floor.reception': 'Reception',
+      'floor.unused': 'Unused',
+      'floor.notAtClub': '—',
+      'view.compact': 'Compact',
+      'view.floorplan': 'Floorplan',
+
+      // Court allocation errors (scheduler.js)
+      'alloc.errTooSmall': 'Group "{name}" needs at least {k} {unit} (has {size}).',
+      'alloc.errMax': 'Group "{name}" can use at most {max} courts.',
+      'alloc.errOverrides': 'Court overrides use {sum} courts, but only {c} are available.',
+      'alloc.errNotEnough': 'Not enough courts: at least {needed} needed, {c} selected.',
+      'alloc.errZero': 'Group "{name}" has 0 courts.',
+      // Round editing errors (scheduler.js)
+      'edit.onlyCurrent': 'Only the current (first suggested) round can be edited.',
+      'edit.twoDifferent': 'Select two different players.',
+      'edit.bothInRound': 'Both players must be in this round.',
+      'edit.sameGroup': 'Players can only be swapped within the same group.',
+      'edit.teamNotFound': 'Team not found.',
+      'edit.sameTeam': 'These players are in the same team.',
+      'edit.unlockOnlyLast': 'Only the last confirmed round can be unlocked.',
+      'edit.confirmOnlyCurrent': 'Only the current round can be confirmed.',
+
+      // Rounds
+      'rounds.empty': 'No rounds yet. Add players and courts in Setup, then press Start.',
+      'rounds.back': '← Setup',
+      'rounds.prev': 'Previous round (←)',
+      'rounds.prevAria': 'Previous round',
+      'rounds.pill': 'Round {n}: {status}',
+      'rounds.nextTitle': 'Next round (→)',
+      'rounds.next': 'Next round ›',
+      'rounds.fullscreen': 'Fullscreen',
+      'rounds.exitFullscreen': 'Exit fullscreen',
+      'rounds.title': 'Round {n} of {total}',
+      'rounds.confirm': 'Confirm round',
+      'rounds.regenerate': 'Regenerate suggestion',
+      'rounds.editHint': 'Click two players of the same group to swap them. Click one player for more options.',
+      'rounds.selected': 'Selected: ',
+      'rounds.renameSel': 'Rename {name}',
+      'rounds.replace': 'Replace',
+      'rounds.absentTeam': 'Mark team absent',
+      'rounds.absent': 'Mark absent',
+      'rounds.suggestedOnly': 'Suggested only: confirm round {n} first. This round is regenerated whenever an earlier round is confirmed.',
+      'rounds.court': 'Court {n} — {group}',
+      'rounds.teamA': 'Team A games',
+      'rounds.teamB': 'Team B games',
+      'rounds.vs': 'vs',
+      'rounds.resting': 'Resting',
+      'rounds.nobodyRests': 'Nobody rests this round.',
+      'rounds.unlock': 'Unlock round',
+      'confirm.round': 'Confirm Round {n}? The lineup will be locked.',
+      'confirm.unlock': 'Unlock round {n}? Its lineup becomes editable again (scores are kept) and all later suggested rounds are regenerated.',
+      'confirm.btn': 'Confirm',
+      'rank.rounds': 'Rounds',
+      'dot.played': 'Round {n}: played',
+      'dot.rested': 'Round {n}: rested',
+      'dot.absent': 'Round {n}: absent',
+      'dot.suggested': ' (suggested)',
+      'help.btn': 'Help',
+      'help.title': 'Help',
+      'help.tour': 'Show the tour',
+      'help.close': 'Close',
+      'help.mode': 'Americano: everyone plays with changing partners. Teams: fixed pairs play other pairs.',
+      'help.players': 'Make a group per level, paste names (one per line), then check players in. Only Present and Late players are scheduled.',
+      'help.courts': 'Select the courts you may use. Courts are split over the groups automatically; click a court on the floorplan to change it.',
+      'help.rounds': 'How many rounds you want to play. You can change it later.',
+      'help.start': 'Start makes suggested rounds. You confirm each round when it starts; later rounds adapt.',
+      'help.screen.setup': 'Set up the tournament from top to bottom: mode, players and groups, courts, rounds, then Start.',
+      'help.screen.rounds': 'Shows the courts per round. In the current round click two players to swap them, then Confirm round. Enter scores in confirmed rounds: type a number, Enter/Tab/arrows move to the next field.',
+      'help.screen.find': 'Type part of a name to see where a player is in the selected round. Dots: green played, red rested, grey absent; pale = suggested.',
+      'help.screen.rankings': 'Rankings count games won. Ties are broken by difference, then wins. Final standings shows the projector view.',
+      'help.screen.data': 'Export the tournament to a file, or import one. Everything is also saved in this browser.',
+      'tour.title1': 'Welcome',
+      'tour.text1': 'This app plans an Americano: groups by level, fair rests, changing partners.',
+      'tour.title2': 'Setup',
+      'tour.text2': 'Add groups and paste names, check players in, pick courts, then press Start.',
+      'tour.title3': 'Rounds',
+      'tour.text3': 'Confirm a round when it starts. Afterwards enter the scores with the keyboard only.',
+      'tour.title4': 'Find and Rankings',
+      'tour.text4': 'Players find their court on Find player. Rankings update with every score.',
+      'tour.next': 'Next',
+      'tour.done': 'Done',
+      'tour.skip': 'Skip tour',
+      'tour.step': 'Step {n} of {total}',
+      'rounds.waitingFor': 'Waiting for {names}',
+      'rounds.lateSlot': 'Late: {name}',
+      'rounds.present': 'Present',
+      'rounds.absentBtn': 'Absent',
+      'rounds.arrived': '{name} present',
+      'rounds.lateAbsent': '{name} absent',
+      'rounds.lateLabel': 'Late',
+      'rounds.lapsed': 'Court {n} lapsed: late player absent, its players rest.',
+      'late.title': 'Still late in round {n}',
+      'late.absent': 'Absent (match lapses)',
+      'late.present': 'Present',
+      'late.confirm': 'Confirm round {n}',
+
+      // Find player
+      'find.round': 'Round {n}',
+      'find.resting': 'Resting',
+      'find.late': 'Late',
+      'find.absent': 'Absent',
+      'find.noMatch': 'No player matches.',
+      'find.search': 'Search player…',
+      'find.searchAria': 'Search player',
+
+      // Rankings
+      'rank.rank': 'Rank',
+      'rank.team': 'Team',
+      'rank.name': 'Name',
+      'rank.group': 'Group',
+      'rank.played': 'Played',
+      'rank.rested': 'Rested',
+      'rank.won': 'Won',
+      'rank.lost': 'Lost',
+      'rank.diff': 'Diff',
+      'rank.wdl': 'W-D-L',
+      'rank.avg': 'Avg',
+      'rank.perGroup': 'Per group',
+      'rank.all': 'All',
+      'rank.allGroups': 'All groups',
+      'rank.final': 'Final standings',
+      'final.rank': '#',
+      'final.close': 'Close (Esc)',
+
+      // Data
+      'data.title': 'Data',
+      'data.hint': 'Everything is saved automatically in this browser. Export a JSON file as a backup or to move to another laptop.',
+      'data.export': 'Export JSON',
+      'data.import': 'Import JSON',
+      'data.reset': 'Reset',
+      'data.fairness': 'Fairness report (all rounds, including suggested)',
+
+      // Fairness report columns (scheduler.js)
+      'fair.group': 'Group',
+      'fair.units': 'Units',
+      'fair.restsMin': 'Rests min',
+      'fair.restsMax': 'Rests max',
+      'fair.maxConsec': 'Max consec. rests',
+      'fair.repPartners': 'Repeat partners',
+      'fair.repOpponents': 'Repeat opponents',
+      'fair.sameCourt': 'Same court consec.',
+    },
+  };
+
+  let lang = 'en';
+  function setLang(l) { if (STRINGS[l]) lang = l; }
+  function t(key, vars) {
+    const table = STRINGS[lang] || STRINGS.en;
+    const s = key in table ? table[key] : (key in STRINGS.en ? STRINGS.en[key] : key);
+    return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s;
+  }
+
+  const api = { STRINGS, t, setLang };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Strings = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>/* Padel Americano scheduler — pure functions, no DOM, seeded RNG only. */
+(function (root) {
+  'use strict';
+  const { t } = typeof module !== 'undefined' && module.exports ? require('./strings.js') : root.Strings;
+
+  // ---- Cost weights (tune here) ----
+  const W_PARTNER = 1000;   // repeated partner (americano), multiplied by count²
+  const W_OPPONENT = 100;   // repeated opponent / opponent team, multiplied by count²
+  const W_MET = 30;         // any earlier shared court (partner or opponent), per meeting
+  const W_SAME_COURT = 1;   // same court as previous round, per unit
+
+  // ---- Search parameters ----
+  const RESTARTS = 6;       // random restarts of the match search per round
+  const MAX_PASSES = 30;    // local-search passes per restart
+  const REST_ATTEMPTS = 40; // randomised rest plans tried per group
+
+  const unitsPerCourt = mode => (mode === 'teams' ? 2 : 4);
+
+  // ---- Seeded RNG (mulberry32) ----
+  function makeRng(seed) {
+    let s = (seed >>> 0) || 1;
+    const next = () => {
+      s = (s + 0x6d2b79f5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const int = n => Math.floor(next() * n);
+    const shuffle = arr => {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = int(i + 1);
+        const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+      }
+      return arr;
+    };
+    return { next, int, shuffle };
+  }
+
+  // ---- Court allocation ----
+  // groups: [{id, name, size (units), override: null|number}], courts: [courtNo]
+  // Returns {counts:{id:n}, assignment:{id:[courtNo]}, idle:[courtNo], errors:[string]}
+  function allocateCourts(groups, courts, mode) {
+    const k = unitsPerCourt(mode);
+    const unitName = t(mode === 'teams' ? 'unit.teams' : 'unit.players');
+    const errors = [];
+    const counts = {};
+    const sorted = courts.slice().sort((a, b) => a - b);
+    const C = sorted.length;
+
+    for (const g of groups) {
+      if (g.size < k) errors.push(t('alloc.errTooSmall', { name: g.name, k, unit: unitName, size: g.size }));
+    }
+
+    const fixed = groups.filter(g => g.override != null);
+    const auto = groups.filter(g => g.override == null);
+    let fixedSum = 0;
+    for (const g of fixed) {
+      const max = Math.floor(g.size / k);
+      if (g.override > max) errors.push(t('alloc.errMax', { name: g.name, max }));
+      counts[g.id] = g.override;
+      fixedSum += g.override;
+    }
+    if (fixedSum > C) errors.push(t('alloc.errOverrides', { sum: fixedSum, c: C }));
+
+    const avail = Math.max(0, C - fixedSum);
+    const total = auto.reduce((s, g) => s + g.size, 0);
+    const info = auto.map(g => {
+      const min = g.size >= k ? 1 : 0;
+      const max = Math.floor(g.size / k);
+      const quota = total ? (avail * g.size) / total : 0;
+      return { g, min, max, quota, n: Math.min(max, Math.max(min, Math.floor(quota))) };
+    });
+    let sum = info.reduce((s, x) => s + x.n, 0);
+    // Too many (minimums pushed us over): take back from smallest remainder.
+    while (sum > avail) {
+      const cand = info.filter(x => x.n > x.min).sort((a, b) => (a.quota - a.n) - (b.quota - b.n))[0];
+      if (!cand) break;
+      cand.n--; sum--;
+    }
+    // Leftovers: largest remainder among groups below their max.
+    while (sum < avail) {
+      const cand = info.filter(x => x.n < x.max).sort((a, b) => (b.quota - b.n) - (a.quota - a.n))[0];
+      if (!cand) break;
+      cand.n++; sum++;
+    }
+    for (const x of info) counts[x.g.id] = x.n;
+
+    const needed = groups.reduce((s, g) => s + (g.size >= k ? 1 : 0), 0);
+    if (sum + fixedSum > C || needed > C) errors.push(t('alloc.errNotEnough', { needed, c: C }));
+    for (const g of groups) {
+      if (g.size >= k && !counts[g.id]) errors.push(t('alloc.errZero', { name: g.name }));
+    }
+
+    const assignment = {};
+    let pos = 0;
+    for (const g of groups) {
+      assignment[g.id] = sorted.slice(pos, pos + counts[g.id]);
+      pos += counts[g.id];
+    }
+    return { counts, assignment, idle: sorted.slice(pos), errors: [...new Set(errors)] };
+  }
+
+  // Manual allocation (courts clicked on the floorplan). courtMap: {courtNo: groupId}.
+  // Same result shape as allocateCourts. Courts beyond floor(size/k) stay unused in the rounds.
+  function allocateManual(groups, courtMap, mode) {
+    const k = unitsPerCourt(mode);
+    const unitName = t(mode === 'teams' ? 'unit.teams' : 'unit.players');
+    const errors = [], counts = {}, assignment = {};
+    const all = Object.keys(courtMap || {}).map(Number).sort((a, b) => a - b);
+    for (const g of groups) {
+      assignment[g.id] = all.filter(c => courtMap[c] === g.id);
+      counts[g.id] = assignment[g.id].length;
+      if (g.size < k) errors.push(t('alloc.errTooSmall', { name: g.name, k, unit: unitName, size: g.size }));
+      else if (!counts[g.id]) errors.push(t('alloc.errZero', { name: g.name }));
+    }
+    const ids = new Set(groups.map(g => g.id));
+    return { counts, assignment, idle: all.filter(c => !ids.has(courtMap[c])), errors };
+  }
+
+  // Compact-view group colours: n distinct colours from the palette, random but fixed per seed.
+  // More groups than colours → the palette repeats.
+  function pickGroupColors(palette, n, seed) {
+    const shuffled = makeRng(seed).shuffle(palette.slice());
+    return Array.from({ length: n }, (_, i) => shuffled[i % shuffled.length]);
+  }
+
+  // Playing / resting units per round for a group.
+  function groupLoad(size, courts, mode) {
+    const k = unitsPerCourt(mode);
+    const c = Math.min(courts, Math.floor(size / k));
+    return { courts: c, playing: c * k, resting: size - c * k };
+  }
+
+  // ---- Statistics (per group, local unit indices) ----
+  function newStats(n) {
+    return {
+      n,
+      P: new Uint16Array(n * n),        // partner count
+      O: new Uint16Array(n * n),        // opponent count
+      M: new Uint16Array(n * n),        // shared-court count
+      rests: new Int32Array(n),
+      restedLast: new Uint8Array(n),    // current run of consecutive rests
+
+      lastCourt: new Int32Array(n).fill(-1),
+    };
+  }
+  function bump(arr, n, a, b) { arr[a * n + b]++; arr[b * n + a]++; }
+
+  // localRound: {matches:[{court, A:[unit], B:[unit]}], resting:[unit]}
+  function applyRound(st, lr) {
+    const n = st.n;
+    const run = st.restedLast;
+    const prevRun = Uint8Array.from(run);
+    run.fill(0);
+    st.lastCourt.fill(-1);
+    for (const m of lr.matches) {
+      const all = m.A.concat(m.B);
+      for (let i = 0; i < all.length; i++) {
+        st.lastCourt[all[i]] = m.court;
+        for (let j = i + 1; j < all.length; j++) bump(st.M, n, all[i], all[j]);
+      }
+      if (m.A.length === 2) bump(st.P, n, m.A[0], m.A[1]);
+      if (m.B.length === 2) bump(st.P, n, m.B[0], m.B[1]);
+      for (const a of m.A) for (const b of m.B) bump(st.O, n, a, b);
+    }
+    for (const u of lr.resting) { st.rests[u]++; run[u] = Math.min(255, prevRun[u] + 1); }
+  }
+
+  // Convert a state round to a local round for one group.
+  function toLocalRound(round, groupId, idx) {
+    const map = ids => [...new Set(ids.map(p => idx.get(p)).filter(u => u !== undefined))];
+    return {
+      matches: round.matches.filter(m => m.groupId === groupId)
+        .map(m => ({ court: m.court, A: map(m.teamA), B: map(m.teamB) })),
+      resting: map(round.resting || []),
+    };
+  }
+
+  // ---- Rest planning ----
+  const isActive = (u, r) => u.absentFromRound == null || r < u.absentFromRound;
+
+  function planRests(units, st, start, N, k, nCourts, rng) {
+    const n = units.length;
+    const rounds = [];
+    for (let r = start; r < N; r++) {
+      const act = [];
+      for (let i = 0; i < n; i++) if (isActive(units[i], r)) act.push(i);
+      const c = Math.min(nCourts, Math.floor(act.length / k));
+      rounds.push({ act, c, R: act.length - k * c });
+    }
+    // remaining active rounds per unit from round index ri (inclusive)
+    const remain = rounds.map((_, ri) => {
+      const L = new Int32Array(n);
+      for (let s = ri; s < rounds.length; s++) for (const u of rounds[s].act) L[u]++;
+      return L;
+    });
+    const futureRests = rounds.map((_, ri) => rounds.slice(ri).reduce((s, x) => s + x.R, 0));
+    const finalUnits = rounds.length ? rounds[rounds.length - 1].act : [];
+
+    let best = null;
+    for (let a = 0; a < REST_ATTEMPTS; a++) {
+      const rests = Int32Array.from(st.rests);
+      let restedLast = Uint8Array.from(st.restedLast);
+      const rank = rng.shuffle([...Array(n).keys()]);
+      const sets = [];
+      let consec = 0;
+      for (let ri = 0; ri < rounds.length; ri++) {
+        const { act, R } = rounds[ri];
+        const L = remain[ri];
+        // Water-fill future rests onto units with the fewest rests.
+        const need = new Int32Array(n);
+        for (let t = 0; t < futureRests[ri]; t++) {
+          let bu = -1;
+          for (const u of act) {
+            if (need[u] >= L[u]) continue;
+            if (bu < 0 || rests[u] + need[u] < rests[bu] + need[bu] ||
+                (rests[u] + need[u] === rests[bu] + need[bu] && rank[u] < rank[bu])) bu = u;
+          }
+          if (bu < 0) break;
+          need[bu]++;
+        }
+        const tie = new Float64Array(n);
+        for (const u of act) tie[u] = rng.next();
+        const urg = u => need[u] - Math.ceil((L[u] - 1) / 2);
+        const order = act.slice().sort((x, y) =>
+          ((need[y] > 0) - (need[x] > 0)) ||
+          (restedLast[x] - restedLast[y]) ||
+          (urg(y) - urg(x)) ||
+          (need[y] - need[x]) ||
+          (tie[x] - tie[y]));
+        const chosen = order.slice(0, R);
+        const next = new Uint8Array(n);
+        for (const u of chosen) {
+          if (restedLast[u]) consec += restedLast[u] * restedLast[u]; // longer runs cost more
+          rests[u]++;
+          next[u] = Math.min(255, restedLast[u] + 1);
+        }
+        restedLast = next;
+        sets.push(chosen);
+      }
+      let lo = Infinity, hi = -Infinity;
+      for (const u of finalUnits) { lo = Math.min(lo, rests[u]); hi = Math.max(hi, rests[u]); }
+      const spread = finalUnits.length ? hi - lo : 0;
+      const score = Math.max(0, spread - 1) * 1000 + consec;
+      if (!best || score < best.score) best = { score, sets };
+      if (score === 0) break;
+    }
+    return rounds.map((x, ri) => ({ act: x.act, c: x.c, resting: best ? best.sets[ri] : [] }));
+  }
+
+  // ---- Match search ----
+  function matchRound(st, playing, courts, k, rng) {
+    const n = st.n;
+    const sq = x => x * x;
+    const pc = (a, b) => W_PARTNER * sq(st.P[a * n + b]) + W_MET * st.M[a * n + b];
+    const oc = (a, b) => W_OPPONENT * sq(st.O[a * n + b]) + W_MET * st.M[a * n + b];
+
+    // best split of a block → {cost, A, B}
+    const split4 = blk => {
+      const [a, b, c, d] = blk;
+      const s1 = pc(a, b) + pc(c, d) + oc(a, c) + oc(a, d) + oc(b, c) + oc(b, d);
+      const s2 = pc(a, c) + pc(b, d) + oc(a, b) + oc(a, d) + oc(c, b) + oc(c, d);
+      const s3 = pc(a, d) + pc(b, c) + oc(a, b) + oc(a, c) + oc(d, b) + oc(d, c);
+      if (s1 <= s2 && s1 <= s3) return { cost: s1, A: [a, b], B: [c, d] };
+      if (s2 <= s3) return { cost: s2, A: [a, c], B: [b, d] };
+      return { cost: s3, A: [a, d], B: [b, c] };
+    };
+    const blockCost = k === 4 ? blk => split4(blk).cost : blk => oc(blk[0], blk[1]);
+    const nb = courts.length;
+
+    const greedy = () => {
+      const pool = rng.shuffle(playing.slice());
+      const blocks = [];
+      while (pool.length) {
+        const blk = [pool.shift()];
+        while (blk.length < k) {
+          let bi = 0, bc = Infinity;
+          for (let i = 0; i < pool.length; i++) {
+            let c = 0;
+            for (const x of blk) c += Math.min(pc(x, pool[i]), oc(x, pool[i]));
+            if (c < bc) { bc = c; bi = i; }
+          }
+          blk.push(pool.splice(bi, 1)[0]);
+        }
+        blocks.push(blk);
+      }
+      return blocks;
+    };
+    const random = () => {
+      const pool = rng.shuffle(playing.slice());
+      const blocks = [];
+      for (let i = 0; i < nb; i++) blocks.push(pool.slice(i * k, i * k + k));
+      return blocks;
+    };
+    const improve = blocks => {
+      const costs = blocks.map(blockCost);
+      for (let pass = 0, improved = true; improved && pass < MAX_PASSES; pass++) {
+        improved = false;
+        for (let i = 0; i < nb; i++) for (let j = i + 1; j < nb; j++) {
+          const A = blocks[i], B = blocks[j];
+          for (let x = 0; x < k; x++) for (let y = 0; y < k; y++) {
+            const ax = A[x]; A[x] = B[y]; B[y] = ax;
+            const ca = blockCost(A), cb = blockCost(B);
+            if (ca + cb < costs[i] + costs[j] - 1e-9) { costs[i] = ca; costs[j] = cb; improved = true; }
+            else { B[y] = A[x]; A[x] = ax; }
+          }
+        }
+      }
+      return { blocks, total: costs.reduce((s, c) => s + c, 0) };
+    };
+
+    let best = null;
+    for (let r = 0; r < RESTARTS; r++) {
+      const res = improve(r % 2 === 0 ? greedy() : random());
+      if (!best || res.total < best.total) best = res;
+      if (best.total === 0) break;
+    }
+    const blocks = best ? best.blocks : [];
+
+    // Court assignment: minimise units on the same court as last round.
+    const courtCost = (blk, court) => W_SAME_COURT * blk.filter(u => st.lastCourt[u] === court).length;
+    const order = rng.shuffle([...blocks.keys()]);
+    const free = courts.slice();
+    const assigned = new Array(nb);
+    for (const bi of order) {
+      let fi = 0, fc = Infinity;
+      for (let i = 0; i < free.length; i++) {
+        const c = courtCost(blocks[bi], free[i]);
+        if (c < fc) { fc = c; fi = i; }
+      }
+      assigned[bi] = free.splice(fi, 1)[0];
+    }
+    for (let i = 0; i < nb; i++) for (let j = i + 1; j < nb; j++) {
+      const cur = courtCost(blocks[i], assigned[i]) + courtCost(blocks[j], assigned[j]);
+      const sw = courtCost(blocks[i], assigned[j]) + courtCost(blocks[j], assigned[i]);
+      if (sw < cur) { const t = assigned[i]; assigned[i] = assigned[j]; assigned[j] = t; }
+    }
+
+    return blocks.map((blk, i) => {
+      let A, B;
+      if (k === 4) ({ A, B } = split4(blk)); else { A = [blk[0]]; B = [blk[1]]; }
+      if (rng.next() < 0.5) { const t = A; A = B; B = t; }
+      return { court: assigned[i], A, B };
+    }).sort((a, b) => a.court - b.court);
+  }
+
+  // ---- Group scheduling ----
+  // group: {id, courts:[courtNo], units:[{id, members:[playerId], absentFromRound, late}]}
+  // Late units (SPEC_v2 §D) are inactive in every draft round. Only in the first draft round can they fill
+  // a "pending court": when the would-be resters plus at most LATE_CAP late units make one extra court.
+  // A normal full match never becomes pending. Unplaced late units go to round.late (no rest credit).
+  const LATE_CAP = { 4: 2, 2: 1 }; // late units per pending court: americano 2 players, teams 1 team
+  function scheduleGroup(group, mode, N, history, seed) {
+    const k = unitsPerCourt(mode);
+    const rng = makeRng(seed);
+    const start = history.length;
+    const lateIdx = [];
+    group.units.forEach((u, i) => { if (u.late && isActive(u, start)) lateIdx.push(i); });
+    const units = lateIdx.length
+      ? group.units.map((u, i) => (lateIdx.includes(i) ? Object.assign({}, u, { absentFromRound: start }) : u))
+      : group.units;
+    const idx = new Map();
+    units.forEach((u, i) => u.members.forEach(p => idx.set(p, i)));
+    const st = newStats(units.length);
+    for (const round of history) applyRound(st, toLocalRound(round, group.id, idx));
+    const ids = us => us.flatMap(u => units[u].members);
+    const lateIds = lateIdx.length ? ids(lateIdx) : null;
+
+    let plan = planRests(units, st, start, N, k, group.courts.length, rng);
+    const out = [];
+    for (let pi = 0; pi < plan.length; pi++) {
+      const pr = plan[pi];
+      const resting = new Set(pr.resting);
+      const playing = pr.act.filter(u => !resting.has(u));
+      const matches = matchRound(st, playing, group.courts.slice(0, pr.c), k, rng);
+      let restingOut = pr.resting;
+      let lateOut = lateIds;
+      let pendingMatch = null;
+      if (pi === 0 && lateIdx.length && pr.c < group.courts.length) {
+        const need = k - pr.resting.length; // late units needed to complete one more court
+        if (need >= 1 && need <= Math.min(LATE_CAP[k], lateIdx.length)) {
+          const late = lateIdx.slice(0, need);
+          const [pm] = matchRound(st, pr.resting.concat(late), [group.courts[pr.c]], k, rng);
+          matches.push(pm);
+          pendingMatch = pm;
+          restingOut = [];
+          lateOut = ids(lateIdx.slice(need));
+        }
+      }
+      applyRound(st, { matches, resting: restingOut });
+      const lr = {
+        matches: matches.map(m => {
+          const mm = { court: m.court, groupId: group.id, teamA: ids(m.A), teamB: ids(m.B), scoreA: null, scoreB: null };
+          if (m === pendingMatch) { mm.pending = true; mm.late = mm.teamA.concat(mm.teamB).filter(p => lateIds.includes(p)); }
+          return mm;
+        }),
+        resting: ids(restingOut),
+      };
+      if (lateOut && lateOut.length) lr.late = lateOut;
+      out.push(lr);
+      // The first round changed (no rests): re-plan the later rounds from the updated statistics.
+      if (pendingMatch && N > start + 1) plan = plan.slice(0, 1).concat(planRests(units, st, start + 1, N, k, group.courts.length, rng));
+    }
+    return out;
+  }
+
+  // input: {mode, numRounds, seed, groups:[{id, courts, units}], history:[round]}
+  // Returns history (untouched) followed by draft rounds up to numRounds.
+  function scheduleRounds(input) {
+    const { mode, numRounds, seed, groups } = input;
+    const history = input.history || [];
+    const rng = makeRng(seed);
+    const perGroup = groups.map(g => scheduleGroup(g, mode, numRounds, history, rng.int(0x7fffffff)));
+    const out = history.slice();
+    for (let r = history.length; r < numRounds; r++) {
+      const gi = r - history.length;
+      out.push({
+        index: r,
+        status: 'draft',
+        seed,
+        matches: perGroup.flatMap(g => g[gi].matches).sort((a, b) => a.court - b.court),
+        resting: perGroup.flatMap(g => g[gi].resting),
+      });
+      const late = perGroup.flatMap(g => g[gi].late || []);
+      if (late.length) out[out.length - 1].late = late;
+    }
+    return out;
+  }
+
+  // ---- State helpers ----
+  // Check-in status: only Present and Late are scheduled ('pending' = not checked in, 'absent').
+  // No status (older saved data) counts as Present. Late is scheduled like Present (for now).
+  const isScheduled = p => !!p && (p.status == null || p.status === 'present' || p.status === 'late');
+
+  // Units of a group. scheduled: false → excluded from every draft round (absentFromRound 0).
+  function unitsForGroup(state, groupId) {
+    if (state.mode === 'teams') {
+      const byId = new Map(state.players.map(p => [p.id, p]));
+      return state.teams.filter(t => t.groupId === groupId).map(t => {
+        const scheduled = t.playerIds.every(id => isScheduled(byId.get(id)));
+        const abs = t.playerIds.map(id => byId.get(id) && byId.get(id).absentFromRound).filter(x => x != null);
+        const late = scheduled && t.playerIds.some(id => byId.get(id).status === 'late');
+        return { id: t.id, members: t.playerIds.slice(), scheduled, late,
+          absentFromRound: !scheduled ? 0 : abs.length ? Math.min(...abs) : null };
+      });
+    }
+    return state.players.filter(p => p.groupId === groupId)
+      .map(p => ({ id: p.id, members: [p.id], scheduled: isScheduled(p), late: p.status === 'late',
+        absentFromRound: isScheduled(p) ? p.absentFromRound : 0 }));
+  }
+  const scheduledUnits = (state, groupId) => unitsForGroup(state, groupId).filter(u => u.scheduled);
+
+  function confirmedPrefix(rounds) {
+    let last = -1;
+    rounds.forEach((r, i) => { if (r.status === 'confirmed') last = i; });
+    return rounds.slice(0, last + 1);
+  }
+
+  // Regenerates all draft rounds from the confirmed history. Returns a new rounds array.
+  // keepUntil (optional): keep rounds[0..keepUntil) as history (e.g. an edited draft) instead.
+  function scheduleState(state, seed, keepUntil) {
+    const rounds = state.rounds || [];
+    return scheduleRounds({
+      mode: state.mode,
+      numRounds: state.numRounds,
+      seed: seed == null ? state.seed : seed,
+      history: keepUntil == null ? confirmedPrefix(rounds) : rounds.slice(0, keepUntil),
+      groups: state.groups.map(g => ({
+        id: g.id,
+        courts: (state.courtAssignment && state.courtAssignment[g.id]) || [],
+        units: unitsForGroup(state, g.id),
+      })),
+    });
+  }
+
+  // ---- Round editing ----
+  // Only the first draft round (directly after the confirmed prefix) can be edited.
+  const editableIndex = rounds => confirmedPrefix(rounds).length;
+
+  function roundOf(round, pid) {
+    if (round.resting.includes(pid)) return true;
+    return round.matches.some(m => m.teamA.includes(pid) || m.teamB.includes(pid));
+  }
+
+  // Swap players a and b (teams mode: their whole teams) in rounds[idx].
+  // Returns {error} or {rounds} (new array; the edited round is a copy).
+  function swapPlayers(state, idx, a, b) {
+    const rounds = state.rounds || [];
+    const round = rounds[idx];
+    if (!round || round.status !== 'draft' || idx !== editableIndex(rounds)) {
+      return { error: t('edit.onlyCurrent') };
+    }
+    if (a === b) return { error: t('edit.twoDifferent') };
+    const pm = new Map(state.players.map(p => [p.id, p]));
+    const pa = pm.get(a), pb = pm.get(b);
+    if (!pa || !pb || !roundOf(round, a) || !roundOf(round, b)) return { error: t('edit.bothInRound') };
+    if (pa.groupId !== pb.groupId) return { error: t('edit.sameGroup') };
+    let pairs = [[a, b]];
+    if (state.mode === 'teams') {
+      const team = id => state.teams.find(tm => tm.playerIds.includes(id));
+      const ta = team(a), tb = team(b);
+      if (!ta || !tb) return { error: t('edit.teamNotFound') };
+      if (ta === tb) return { error: t('edit.sameTeam') };
+      pairs = ta.playerIds.map((id, i) => [id, tb.playerIds[i]]);
+    }
+    const swap = new Map();
+    for (const [x, y] of pairs) { swap.set(x, y); swap.set(y, x); }
+    const sub = ids => ids.map(id => (swap.has(id) ? swap.get(id) : id));
+    const copy = Object.assign({}, round, {
+      matches: round.matches.map(m => Object.assign({}, m, { teamA: sub(m.teamA), teamB: sub(m.teamB) })),
+      resting: sub(round.resting),
+    });
+    const out = rounds.slice();
+    out[idx] = copy;
+    return { rounds: out };
+  }
+
+  // Confirm rounds[idx] (must be the first draft) and regenerate all later drafts from it.
+  function confirmRound(state, idx) {
+    const rounds = (state.rounds || []).slice();
+    if (!rounds[idx] || idx !== editableIndex(rounds)) return { error: t('edit.confirmOnlyCurrent') };
+    rounds[idx] = Object.assign({}, rounds[idx], { status: 'confirmed' });
+    return { rounds: scheduleState(Object.assign({}, state, { rounds })) };
+  }
+
+  // Unlock the last confirmed round (admin): it becomes the editable draft again (lineup and scores kept);
+  // later Suggested rounds are regenerated. Returns {error} or {rounds}.
+  function unlockRound(state, idx) {
+    const rounds = (state.rounds || []).slice();
+    if (!rounds[idx] || rounds[idx].status !== 'confirmed' || idx !== confirmedPrefix(rounds).length - 1) {
+      return { error: t('edit.unlockOnlyLast') };
+    }
+    rounds[idx] = Object.assign({}, rounds[idx], { status: 'draft' });
+    return { rounds: scheduleState(Object.assign({}, state, { rounds }), null, idx + 1) };
+  }
+
+  // Resolve late player(s) ids (a player, or both members of a late team) in a draft round.
+  // 'present': off the pending list (court plays normally once nobody is late) or, if not on a court, resting.
+  // 'absent': a pending court lapses — its present players rest (rest credit), other undecided late players
+  // go to round.late (no credit), the absent ones leave the round. Returns a new round.
+  function resolveLate(round, lateIds, outcome) {
+    const gone = new Set(lateIds);
+    const r = Object.assign({}, round, { matches: round.matches.slice(), resting: round.resting.slice(), late: (round.late || []).slice() });
+    const off = r.late.filter(p => gone.has(p));
+    if (off.length) {
+      r.late = r.late.filter(p => !gone.has(p));
+      if (outcome === 'present') r.resting.push(...off);
+    }
+    const mi = r.matches.findIndex(m => m.pending && m.late.some(p => gone.has(p)));
+    if (mi >= 0) {
+      const m = r.matches[mi];
+      const stillLate = m.late.filter(p => !gone.has(p));
+      if (outcome === 'present') {
+        const mm = Object.assign({}, m, { late: stillLate });
+        if (!stillLate.length) { delete mm.pending; delete mm.late; }
+        r.matches[mi] = mm;
+      } else {
+        r.matches.splice(mi, 1);
+        const all = m.teamA.concat(m.teamB);
+        r.resting.push(...all.filter(p => !m.late.includes(p)));
+        r.late.push(...stillLate);
+        r.lapsed = (round.lapsed || []).concat(m.court);
+      }
+    }
+    if (!r.late.length) delete r.late;
+    return r;
+  }
+  // Late players still undecided in a round (on a pending court or in round.late).
+  const undecidedLate = round => [...new Set((round.late || []).concat(...round.matches.filter(m => m.pending).map(m => m.late)))];
+
+  // Restart: keep players and settings, delete rounds and scores, clear absences.
+  function restartTournament(state) {
+    return Object.assign({}, state, {
+      started: false,
+      rounds: [],
+      players: state.players.map(p => Object.assign({}, p, { absentFromRound: null })),
+    });
+  }
+
+  // ---- Fairness report ----
+  // Per group over all given rounds. Rests are counted over units never marked absent.
+  function fairnessReport(state, rounds) {
+    rounds = rounds || state.rounds || [];
+    return state.groups.map(g => {
+      const units = unitsForGroup(state, g.id);
+      const idx = new Map();
+      units.forEach((u, i) => u.members.forEach(p => idx.set(p, i)));
+      const st = newStats(units.length);
+      const run = new Int32Array(units.length);
+      let maxRun = 0, sameCourt = 0;
+      for (const round of rounds) {
+        const lr = toLocalRound(round, g.id, idx);
+        for (const m of lr.matches) for (const u of m.A.concat(m.B)) {
+          if (st.lastCourt[u] === m.court) sameCourt += units[u].members.length;
+        }
+        const resting = new Set(lr.resting);
+        for (let u = 0; u < units.length; u++) {
+          run[u] = resting.has(u) ? run[u] + 1 : 0;
+          maxRun = Math.max(maxRun, run[u]);
+        }
+        applyRound(st, lr);
+      }
+      const n = units.length;
+      let repP = 0, repO = 0;
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+        repP += Math.max(0, st.P[a * n + b] - 1);
+        repO += Math.max(0, st.O[a * n + b] - 1);
+      }
+      const present = [...units.keys()].filter(u => units[u].absentFromRound == null);
+      const rs = present.map(u => st.rests[u]);
+      return {
+        groupId: g.id,
+        group: g.name,
+        units: n,
+        restsMin: rs.length ? Math.min(...rs) : 0,
+        restsMax: rs.length ? Math.max(...rs) : 0,
+        maxConsecutiveRests: maxRun,
+        repeatedPartnerships: repP,
+        repeatedOpponentPairs: repO,
+        sameCourtConsecutive: sameCourt,
+      };
+    });
+  }
+
+  function formatFairness(report) {
+    const cols = [
+      ['group', 'fair.group'], ['units', 'fair.units'], ['restsMin', 'fair.restsMin'], ['restsMax', 'fair.restsMax'],
+      ['maxConsecutiveRests', 'fair.maxConsec'], ['repeatedPartnerships', 'fair.repPartners'],
+      ['repeatedOpponentPairs', 'fair.repOpponents'], ['sameCourtConsecutive', 'fair.sameCourt'],
+    ].map(([k, key]) => [k, t(key)]);
+    const rows = [cols.map(c => c[1])].concat(report.map(r => cols.map(c => String(r[c[0]]))));
+    const w = cols.map((_, i) => Math.max(...rows.map(r => r[i].length)));
+    return rows.map(r => r.map((v, i) => v.padEnd(w[i])).join('  ')).join('\n');
+  }
+
+  const api = {
+    W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
+    makeRng, unitsPerCourt, allocateCourts, allocateManual, groupLoad, pickGroupColors,
+    scheduleRounds, scheduleState, unitsForGroup, scheduledUnits, isScheduled, confirmedPrefix,
+    editableIndex, swapPlayers, confirmRound, restartTournament, unlockRound, resolveLate, undecidedLate,
+    fairnessReport, formatFairness,
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Scheduler = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>/* Padel Americano — name parsing for Setup (pure, no DOM). */
+(function (root) {
+  'use strict';
+
+  const norm = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  // Duplicate key: case- and space-insensitive.
+  const key = s => String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase();
+
+  // Name particles that stay lowercase when not the first word (van der Berg, de Vries).
+  const PARTICLES = new Set(['van', 'von', 'der', 'den', 'de', 'del', 'della', 'di', 'da', 'du', 'het', 'te', 'ter', 'ten', "'t", 'la', 'le', 'vd']);
+  // Capitalise words typed fully in lowercase; mixed case (McDonald, DJ) is left as typed.
+  function capitalise(name) {
+    return norm(name).split(' ').map((w, i) => {
+      if (!w || w !== w.toLowerCase()) return w;
+      if (i > 0 && PARTICLES.has(w)) return w;
+      return w.replace(/(^|[-'])(\p{L})/gu, (m, sep, c) => sep + c.toUpperCase());
+    }).join(' ');
+  }
+
+  // Teams line: separators / & + or Tab (spaces optional). Comma is NOT a separator.
+  function splitTeam(line) {
+    return String(line).split(/[\/&+\t]/).map(capitalise);
+  }
+
+  // "Jan" taken → "Jan (2)", "Jan (3)", ...
+  function uniqueName(name, takenKeys) {
+    const base = norm(name).replace(/\s*\(\d+\)$/, '');
+    for (let n = 2; ; n++) {
+      const cand = `${base} (${n})`;
+      if (!takenKeys.has(key(cand))) return cand;
+    }
+  }
+
+  // Players mode, one cell per line; Excel rows with a Tab: name<Tab>level.
+  function splitPlayer(line) {
+    const cells = String(line).split('\t').map(norm);
+    return { names: [capitalise(cells[0])], level: cells[1] || null };
+  }
+
+  const isHeader = line => /^\s*name\s*([\t,;].*)?$/i.test(line);
+
+  // Parse pasted text into rows.
+  // opts: {teams: bool, taken: [existing names]}
+  // row: {raw, line (display), names, level, ok, reason: null|'format'|'sameTwice'|'taken'|'dupInList', suggestion: [names]|null}
+  // Duplicates within the paste are reported against earlier lines; suggestions are unique against everything.
+  function parseLines(text, opts) {
+    const teams = !!(opts && opts.teams);
+    const taken = new Set(((opts && opts.taken) || []).map(key));
+    const inList = new Set();
+    const all = new Set(taken);
+    const rows = [];
+    for (const raw of String(text || '').split(/\r?\n/)) {
+      if (!norm(raw) || isHeader(raw)) continue;
+      const line = norm(raw.replace(/\t/g, teams ? ' / ' : ' '));
+      const parsed = teams ? { names: splitTeam(raw), level: null } : splitPlayer(raw);
+      const names = parsed.names;
+      const row = { raw: raw.replace(/^\s+|\s+$/g, ''), line, names, level: parsed.level, ok: true, reason: null, suggestion: null };
+      if (teams && (names.length !== 2 || !names[0] || !names[1])) {
+        row.ok = false; row.reason = 'format';
+      } else if (teams && key(names[0]) === key(names[1])) {
+        row.ok = false; row.reason = 'sameTwice';
+      } else {
+        const dup = names.find(n => taken.has(key(n)) || inList.has(key(n)));
+        if (dup) {
+          row.ok = false;
+          row.reason = taken.has(key(dup)) ? 'taken' : 'dupInList';
+          row.dup = dup;
+          const used = new Set(all);
+          row.suggestion = names.map(n => {
+            if (!taken.has(key(n)) && !inList.has(key(n))) return n;
+            const s = uniqueName(n, used);
+            used.add(key(s));
+            return s;
+          });
+        }
+      }
+      if (row.ok) names.forEach(n => { inList.add(key(n)); all.add(key(n)); });
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  // CSV / Excel import: columns name[, level]. Delimiter: Tab, ';' or ','. Header row optional.
+  // Returns text lines for parseLines (players: "name<Tab>level"; teams: "name1<Tab>name2" or the name cell).
+  function importToText(text, teams) {
+    const lines = String(text || '').split(/\r?\n/).filter(l => norm(l));
+    if (!lines.length) return '';
+    const first = lines[0];
+    const delim = first.includes('\t') ? '\t' : first.includes(';') ? ';' : ',';
+    const unq = c => norm(c).replace(/^"(.*)"$/, '$1').replace(/""/g, '"');
+    const rows = lines.map(l => l.split(delim).map(unq));
+    let nameCol = 0, levelCol = 1;
+    const head = rows[0].map(c => c.toLowerCase());
+    const hasHeader = head.includes('name');
+    if (hasHeader) {
+      nameCol = head.indexOf('name');
+      levelCol = head.indexOf('level');
+      rows.shift();
+    }
+    if (teams) return rows.map(r => (hasHeader ? r[nameCol] || '' : r.slice(0, 2).filter(Boolean).join('\t'))).join('\n');
+    return rows.map(r => [r[nameCol] || '', levelCol >= 0 ? r[levelCol] || '' : ''].join('\t').replace(/\t$/, '')).join('\n');
+  }
+
+  // Short form when a name does not fit: last part as initial ("Jan de Vries" → "Jan de V."; "Jan (2)" stays).
+  function shortName(name) {
+    const w = norm(name).split(' ');
+    const suffix = w.length > 1 && /^\(\d+\)$/.test(w[w.length - 1]) ? ' ' + w.pop() : '';
+    if (w.length < 2) return w.join(' ') + suffix;
+    const last = w.pop();
+    return `${w.join(' ')} ${last.charAt(0)}.${suffix}`;
+  }
+
+  const api = { norm, key, capitalise, splitTeam, uniqueName, parseLines, importToText, shortName };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Names = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>/* Padel Americano ranking — pure function, no DOM. */
+(function (root) {
+  'use strict';
+
+  const isScore = v => Number.isInteger(v) && v >= 0;
+  const hasScore = m => isScore(m.scoreA) && isScore(m.scoreB);
+  const rankCmp = (a, b) => b.won - a.won || b.diff - a.diff || b.w - a.w || b.d - a.d || a.l - b.l;
+
+  // Ranked units of a group: players, or teams (both names) in teams mode.
+  function units(state, groupId) {
+    if (state.mode === 'teams') {
+      return state.teams.filter(t => t.groupId === groupId).map(t => ({ id: t.id, members: t.playerIds }));
+    }
+    return state.players.filter(p => p.groupId === groupId).map(p => ({ id: p.id, members: [p.id] }));
+  }
+
+  // One row per unit of the given group (null = all groups).
+  // Only matches with both scores entered count; equal scores = draw. Rests count in rounds
+  // that are confirmed or have at least one scored match. Ties on all keys share a rank (1, 1, 3).
+  function computeRankings(state, groupId) {
+    const pm = new Map(state.players.map(p => [p.id, p]));
+    const rows = [];
+    const rowOf = new Map();
+    for (const g of state.groups) {
+      if (groupId != null && g.id !== groupId) continue;
+      for (const u of units(state, g.id)) {
+        const row = {
+          id: u.id, name: u.members.map(id => (pm.get(id) || { name: '?' }).name).join(' / '),
+          groupId: g.id, group: g.name,
+          played: 0, rested: 0, won: 0, lost: 0, diff: 0, w: 0, d: 0, l: 0, avg: 0, rank: 0,
+        };
+        rows.push(row);
+        u.members.forEach(id => rowOf.set(id, row));
+      }
+    }
+    const rowsFor = ids => [...new Set(ids.map(id => rowOf.get(id)).filter(Boolean))];
+    for (const r of state.rounds || []) {
+      if (r.status !== 'confirmed' && !r.matches.some(hasScore)) continue;
+      for (const row of rowsFor(r.resting)) row.rested++;
+      for (const m of r.matches) {
+        if (m.pending || !hasScore(m)) continue; // no scores count while a court is pending
+        for (const [ids, gf, ga] of [[m.teamA, m.scoreA, m.scoreB], [m.teamB, m.scoreB, m.scoreA]]) {
+          for (const row of rowsFor(ids)) {
+            row.played++; row.won += gf; row.lost += ga;
+            if (gf > ga) row.w++; else if (gf < ga) row.l++; else row.d++;
+          }
+        }
+      }
+    }
+    for (const row of rows) {
+      row.diff = row.won - row.lost;
+      row.avg = row.played ? row.won / row.played : 0;
+    }
+    rows.sort((a, b) => rankCmp(a, b) || a.name.localeCompare(b.name));
+    rows.forEach((row, i) => { row.rank = i && rankCmp(rows[i - 1], row) === 0 ? rows[i - 1].rank : i + 1; });
+    return rows;
+  }
+
+  // ---- Round helpers for the UI (pure) ----
+  // Match result once both scores are in: 'A' | 'B' | 'draw'; null otherwise (pending never counts).
+  function matchResult(m) {
+    if (!m || m.pending || !hasScore(m)) return null;
+    return m.scoreA > m.scoreB ? 'A' : m.scoreA < m.scoreB ? 'B' : 'draw';
+  }
+  // Winner highlight per team row: more games 'win' (bold), other 'lose' (lighter), draw both 'win'.
+  function resultClass(m, key) {
+    const r = matchResult(m);
+    if (!r) return '';
+    if (r === 'draw') return 'win';
+    return (r === 'A') === (key === 'scoreA') ? 'win' : 'lose';
+  }
+  // One dot per round for a player: kind 'played' | 'rested' | 'absent'; suggested = draft round.
+  // Late players waiting (round.late) count as absent for that round (no rest credit).
+  function roundDots(rounds, pid) {
+    return (rounds || []).map(r => {
+      const played = r.matches.some(m => m.teamA.includes(pid) || m.teamB.includes(pid));
+      const kind = played ? 'played' : r.resting.includes(pid) ? 'rested' : 'absent';
+      return { kind, suggested: r.status !== 'confirmed' };
+    });
+  }
+  // Score field order: court by court, team A then team B.
+  function scoreOrder(matches) {
+    return (matches || []).filter(m => !m.pending).slice().sort((a, b) => a.court - b.court)
+      .flatMap(m => [{ court: m.court, key: 'scoreA' }, { court: m.court, key: 'scoreB' }]);
+  }
+  // Auto-advance after a valid entry: "0", 4–9, or two digits. 1–3 wait: they may start 10–39.
+  const autoAdvance = raw => /^(0|[4-9]|[1-9]\d)$/.test(String(raw).trim());
+
+  const api = { computeRankings, hasScore, matchResult, resultClass, roundDots, scoreOrder, autoAdvance };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Ranking = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>/* Padel Americano — UI. Uses window.Scheduler (src/scheduler.js). */
+(function () {
+  'use strict';
+  const STORAGE_KEY = 'padel-americano-v1';
+  const T = window.Strings.t;
+  const THEME = window.THEME || {};
+
+  const TABS = ['setup', 'rounds', 'find', 'rankings', 'data'].map(id => [id, T('tab.' + id)]);
+
+  // Header: wordmark + small "Americano" subtitle; title text only when the theme has no wordmark.
+  // Ring logo: favicon (and final standings).
+  const LOGOS = THEME.logos || {};
+  (function applyTheme() {
+    const title = THEME.title || T('app.title');
+    document.title = title;
+    const h1 = document.querySelector('.topbar h1');
+    if (LOGOS.wordmark) {
+      const img = document.createElement('img');
+      img.className = 'logo'; img.src = LOGOS.wordmark; img.alt = THEME.clubName || title;
+      const sub = document.createElement('span');
+      sub.className = 'subtitle'; sub.textContent = T('app.subtitle');
+      h1.replaceChildren(img, sub);
+    } else h1.textContent = title;
+    if (LOGOS.ring) {
+      const link = document.createElement('link');
+      link.rel = 'icon'; link.href = LOGOS.ring;
+      document.head.append(link);
+    }
+  })();
+
+  function defaultState() {
+    return {
+      version: 1, mode: 'americano', seed: 1, numRounds: 6, started: false, nextId: 0,
+      groups: [], players: [], teams: [], clubCourts: THEME.floorplan ? THEME.floorplan.rows * THEME.floorplan.cols : 12,
+      courts: [], courtMap: null, courtAssignment: {}, rounds: [],
+      ui: { tab: 'setup', roundIdx: 0, rankFilter: 'group', roundsView: 'floorplan' },
+    };
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return Object.assign(defaultState(), JSON.parse(raw));
+    } catch (e) { /* ignore corrupt or blocked storage */ }
+    return defaultState();
+  }
+
+  let state = load();
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  }
+
+  function el(tag, attrs, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v === false || v == null) continue;
+      if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+      else if (k === 'class') node.className = v;
+      else node.setAttribute(k, v);
+    }
+    for (const c of children.flat(Infinity)) if (c != null) node.append(c);
+    return node;
+  }
+
+  function renderTabs() {
+    const nav = document.getElementById('tabs');
+    nav.replaceChildren(...TABS.map(([id, label]) => el('button', {
+      class: state.ui.tab === id ? 'active' : '',
+      onclick: () => { notice = null; state.ui.tab = id; save(); render(); },
+    }, label)), el('button', { class: 'help-btn', title: T('help.btn'), 'aria-label': T('help.btn'), onclick: showHelp }, '?'));
+  }
+
+  // ---------- Helpers ----------
+  const S = window.Scheduler;
+  const N = window.Names;
+  const R = window.Ranking;
+  // Default group colours come from the CSS variables --group-1..4 (set by the theme).
+  const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const COLORS = [1, 2, 3, 4].map(i => cssVar('--group-' + i) || `var(--group-${i})`);
+  // Text on a group colour: dark (--text) on light colours, --brand-contrast on dark ones.
+  function groupText(color) {
+    const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(color || '').trim());
+    if (!m) return 'var(--brand-contrast)';
+    const hex = m[1].length === 3 ? m[1].replace(/./g, c => c + c) : m[1];
+    const lin = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    const [r, g, b] = [0, 2, 4].map(i => lin(parseInt(hex.slice(i, i + 2), 16)));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? 'var(--text)' : 'var(--brand-contrast)';
+  }
+  const gStyle = color => (color ? `--g:${color};--g-text:${groupText(color)}` : '');
+  // Mix two hex colours: w of a, (1 - w) of b. Non-hex input → a.
+  function mixHex(a, b, w) {
+    const rgb = c => { const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(c || '').trim()); if (!m) return null;
+      const h = m[1].length === 3 ? m[1].replace(/./g, x => x + x) : m[1]; return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+    const x = rgb(a), y = rgb(b);
+    if (!x || !y) return a;
+    return '#' + x.map((v, i) => Math.round(v * w + y[i] * (1 - w)).toString(16).padStart(2, '0')).join('');
+  }
+  const DEMO_NAMES = ('Anna Bram Carla Daan Eva Floris Gwen Hugo Iris Jesse Kim Lars Maud Niels Olga ' +
+    'Pieter Quinty Ruben Sanne Tim Ursula Victor Wendy Xander Yara Zeno Amber Bas Chloe Dirk Elise Frank ' +
+    'Gina Hans Ilse Joost Karin Luuk Mila Noah Odile Paul Rosa Sem Tess Thijs Vera Wout Yvonne Bart Celine ' +
+    'Dennis Esther Finn Hanna Ivo Julia Koen Lotte Milan Nina Otto Pim Roos Sven Tara Vince Wim Zoe').split(' ');
+
+  let notice = null;          // {kind: 'error'|'info', text}
+  const pasteDrafts = {};     // textarea content per group id (not persisted)
+  const pasteErrors = {};     // rejected rows per group id: [{line, names, reason, dup, suggestion}] (not persisted)
+  const searches = {};        // checklist search text per group id (not persisted)
+  const STATUSES = ['pending', 'present', 'late', 'absent'];
+  let editing = false;        // "Edit setup" unlocked while the tournament runs (not persisted)
+  let selected = null;        // player id selected for a swap in the current round (not persisted)
+
+  const norm = s => String(s).trim().replace(/\s+/g, ' ');
+  const isTeams = () => state.mode === 'teams';
+  const unitWord = () => T(isTeams() ? 'unit.teams' : 'unit.players');
+  const playerMap = () => new Map(state.players.map(p => [p.id, p]));
+  function newId(prefix) { state.nextId = (state.nextId || 0) + 1; return prefix + state.nextId; }
+
+  function act(fn) { notice = null; fn(); save(); render(); }
+  function setNotice(kind, text) { notice = { kind, text }; }
+
+  function nameTaken(name, exceptId) {
+    const k = N.key(name);
+    return state.players.some(p => p.id !== exceptId && N.key(p.name) === k);
+  }
+  function inConfirmedRound(pid) {
+    return state.rounds.some(r => r.status === 'confirmed' &&
+      (r.resting.includes(pid) || r.matches.some(m => m.teamA.includes(pid) || m.teamB.includes(pid))));
+  }
+  const confirmedCount = () => S.confirmedPrefix(state.rounds || []).length;
+  // Mode, courts and groups: editable before start, or in "Edit setup" while nothing is confirmed.
+  const courtsLocked = () => state.started && (!editing || confirmedCount() > 0);
+  // Players and number of rounds: editable before start, or in "Edit setup".
+  const setupLocked = () => state.started && !editing;
+  function newSeed() { return (Date.now() % 2147483646) + 1; }
+
+  function regenerate() {
+    if (!state.started) return;
+    if (!confirmedCount()) {
+      const errs = startErrors();
+      if (errs.length) {
+        state.rounds = [];
+        return setNotice('error', T('err.setupInvalid', { errors: errs.join(' ') }));
+      }
+      state.courtAssignment = allocation().assignment;
+    }
+    state.rounds = S.scheduleState(state);
+    state.ui.roundIdx = Math.max(0, Math.min(state.ui.roundIdx, state.rounds.length - 1));
+  }
+  // courtMap ({courtNo: groupId}, set by clicking the floorplan) overrides the automatic allocation.
+  function allocation() {
+    const groups = state.groups.map(g => ({
+      id: g.id, name: g.name, size: S.scheduledUnits(state, g.id).length, override: g.courtsOverride,
+    }));
+    return state.courtMap ? S.allocateManual(groups, state.courtMap, state.mode) : S.allocateCourts(groups, state.courts, state.mode);
+  }
+
+  // ---------- Floorplan (theme; presentation only) ----------
+  // Null when the theme has none or the club has more courts than grid cells → Compact only.
+  function floorplan() {
+    const fp = THEME.floorplan;
+    return fp && (state.clubCourts || 0) <= fp.rows * fp.cols ? fp : null;
+  }
+  // Numbering from bottom-left, row by row upward: court 1 bottom-left, rows*cols top-right.
+  function courtPos(n, fp) {
+    return { row: fp.rows - Math.floor((n - 1) / fp.cols), col: ((n - 1) % fp.cols) + 1 };
+  }
+  // Grid of all cells; cell(n) builds the card, placed on its position, with the theme's court tags.
+  function floorGrid(fp, cell, cls) {
+    const nums = Array.from({ length: fp.rows * fp.cols }, (_, i) => i + 1);
+    return el('div', { class: 'floor ' + (cls || '') },
+      el('div', { class: 'floor-grid', style: `grid-template-columns:repeat(${fp.cols},minmax(0,1fr))` }, nums.map(n => {
+        const card = cell(n);
+        const pos = courtPos(n, fp);
+        const tag = (fp.tags || {})[n] || {};
+        card.style.gridRow = pos.row;
+        card.style.gridColumn = pos.col;
+        if (tag.edge) { card.classList.add('edge'); card.style.setProperty('--edge', tag.edge); }
+        if (tag.badge) card.append(el('span', { class: 'court-badge' }, tag.badge));
+        return card;
+      })),
+      fp.reception === 'bottom' || !fp.reception ? el('div', { class: 'reception' }, '▲ ' + T('floor.reception')) : null);
+  }
+  // Click on the floorplan in Setup: cycle the court through the groups, then "not used".
+  function clickCourt(c) {
+    if (courtsLocked()) return;
+    if (!state.courtMap) {
+      state.courtMap = {};
+      for (const [gid, cs] of Object.entries(allocation().assignment)) cs.forEach(x => { state.courtMap[x] = gid; });
+    }
+    const order = [null].concat(state.groups.map(g => g.id));
+    const next = order[(order.indexOf(state.courtMap[c] || null) + 1) % order.length];
+    if (next) state.courtMap[c] = next; else delete state.courtMap[c];
+    state.courts = Object.keys(state.courtMap).map(Number).sort((a, b) => a - b);
+    regenerate();
+  }
+  // Units not checked in (status 'pending'): excluded from the schedule.
+  const notCheckedIn = () => state.groups.reduce((n, g) =>
+    n + S.unitsForGroup(state, g.id).filter(u => !u.scheduled && unitStatus(u) === 'pending').length, 0);
+  function startErrors() {
+    const errs = [];
+    if (!state.groups.length) errs.push(T('err.noGroup'));
+    if (!state.courts.length) errs.push(T('err.noCourt'));
+    if (!(state.numRounds >= 1)) errs.push(T('err.noRounds'));
+    if (state.groups.length && state.courts.length) errs.push(...allocation().errors);
+    return errs;
+  }
+
+  // ---------- Setup actions ----------
+  function setMode(mode) {
+    if (courtsLocked() || mode === state.mode) return;
+    if (state.players.length && !confirm(T('confirm.switchMode'))) return;
+    state.players = []; state.teams = [];
+    state.mode = mode;
+    regenerate();
+  }
+  function addGroup() {
+    if (state.groups.length >= 4) return;
+    const used = new Set(state.groups.map(g => g.color));
+    let n = state.groups.length + 1;
+    while (state.groups.some(g => g.name === T('group.default', { n }))) n++;
+    state.groups.push({ id: newId('g'), name: T('group.default', { n }), color: COLORS.find(c => !used.has(c)) || COLORS[0], courtsOverride: null });
+  }
+  function removeGroup(gid) {
+    const n = S.unitsForGroup(state, gid).length;
+    if (n && !confirm(T('confirm.removeGroup', { n, unit: unitWord() }))) return;
+    state.groups = state.groups.filter(g => g.id !== gid);
+    state.players = state.players.filter(p => p.groupId !== gid);
+    state.teams = state.teams.filter(t => t.groupId !== gid);
+    if (state.courtMap) {
+      for (const c of Object.keys(state.courtMap)) if (state.courtMap[c] === gid) delete state.courtMap[c];
+      state.courts = Object.keys(state.courtMap).map(Number).sort((a, b) => a - b);
+    }
+    regenerate();
+  }
+  function renameGroup(gid, name) {
+    name = norm(name);
+    if (!name) return setNotice('error', T('err.groupNameEmpty'));
+    if (state.groups.some(g => g.id !== gid && g.name.toLowerCase() === name.toLowerCase())) {
+      return setNotice('error', T('err.groupExists', { name }));
+    }
+    state.groups.find(g => g.id === gid).name = name;
+  }
+  function addPlayer(gid, name, level) {
+    const p = { id: newId('p'), name, groupId: gid, absentFromRound: null, status: 'pending' };
+    if (level) p.level = isNaN(+level) ? level : +level;
+    state.players.push(p);
+    return p;
+  }
+  function addUnit(gid, names, level) {
+    if (isTeams()) {
+      const a = addPlayer(gid, names[0]), b = addPlayer(gid, names[1]);
+      state.teams.push({ id: newId('t'), groupId: gid, playerIds: [a.id, b.id] });
+    } else addPlayer(gid, names[0], level);
+  }
+  // Valid lines are added; rejected lines stay in the box and are listed per line with the reason.
+  function addLines(gid, text) {
+    const rows = N.parseLines(text, { teams: isTeams(), taken: state.players.map(p => p.name) });
+    const bad = rows.filter(r => !r.ok);
+    rows.filter(r => r.ok).forEach(r => addUnit(gid, r.names, r.level));
+    pasteDrafts[gid] = bad.map(r => r.raw).join('\n');
+    pasteErrors[gid] = bad;
+    if (rows.length > bad.length) regenerate();
+  }
+  // "Add as Jan (2)": add a rejected duplicate row under its suggested name.
+  function addAs(gid, i) {
+    const row = (pasteErrors[gid] || [])[i];
+    if (!row || !row.suggestion) return;
+    if (row.suggestion.some(n => nameTaken(n))) {
+      // Suggestion got taken meanwhile: recompute from current names.
+      const again = N.parseLines(row.raw, { teams: isTeams(), taken: state.players.map(p => p.name) })[0];
+      if (!again || !again.suggestion) return;
+      row.suggestion = again.suggestion;
+    }
+    addUnit(gid, row.suggestion, row.level);
+    pasteErrors[gid] = pasteErrors[gid].filter(r => r !== row);
+    const lines = (pasteDrafts[gid] || '').split('\n');
+    const at = lines.indexOf(row.raw);
+    if (at >= 0) lines.splice(at, 1);
+    pasteDrafts[gid] = lines.join('\n');
+    regenerate();
+  }
+  function importFile(gid, file) {
+    const reader = new FileReader();
+    reader.onload = () => act(() => {
+      const text = N.importToText(String(reader.result), isTeams());
+      addLines(gid, [pasteDrafts[gid] || '', text].filter(Boolean).join('\n'));
+    });
+    reader.readAsText(file);
+  }
+  // Check-in: status per player; in teams mode a team's chips set both players.
+  function unitStatus(u) {
+    const pm = playerMap();
+    const st = u.members.map(id => pm.get(id).status || 'present');
+    return st.every(x => x === st[0]) ? st[0] : 'pending';
+  }
+  // Late → Present / Absent while a round runs: resolve it in the current round (pending court plays
+  // or lapses) and regenerate only the later suggested rounds. Other changes regenerate all drafts.
+  function setStatus(memberIds, status) {
+    const ids = new Set(memberIds);
+    const idx = S.editableIndex(state.rounds || []);
+    const round = state.started ? state.rounds[idx] : null;
+    const resolving = round && (status === 'present' || status === 'absent') &&
+      S.undecidedLate(round).some(id => ids.has(id));
+    state.players.forEach(p => { if (ids.has(p.id)) p.status = status; });
+    if (!resolving) return regenerate();
+    state.rounds = state.rounds.slice();
+    state.rounds[idx] = S.resolveLate(round, memberIds, status);
+    state.rounds = S.scheduleState(state, null, idx + 1);
+  }
+  // Units (player, or team) having a member among ids.
+  function unitsWith(ids) {
+    return state.groups.flatMap(g => S.unitsForGroup(state, g.id)).filter(u => u.members.some(id => ids.includes(id)));
+  }
+  function markAllPresent(gid) {
+    state.players.forEach(p => { if (p.groupId === gid && (p.status || 'present') === 'pending') p.status = 'present'; });
+    regenerate();
+  }
+  function renamePlayer(pid, name) {
+    name = norm(name);
+    if (!name) return setNotice('error', T('err.nameEmpty'));
+    name = N.capitalise(name);
+    if (nameTaken(name, pid)) return setNotice('error', T('err.nameTaken', { name }));
+    playerMap().get(pid).name = name;
+  }
+  function removeUnit(unitId) {
+    const team = isTeams() ? state.teams.find(t => t.id === unitId) : null;
+    const ids = team ? team.playerIds : [unitId];
+    if (ids.some(inConfirmedRound)) {
+      return setNotice('error', T('err.removePlayed'));
+    }
+    state.players = state.players.filter(p => !ids.includes(p.id));
+    state.teams = state.teams.filter(t => t.id !== unitId);
+    regenerate();
+  }
+  function setClubCourts(n) {
+    n = Math.max(1, Math.min(40, Math.floor(n) || 1));
+    state.clubCourts = n;
+    state.courts = state.courts.filter(c => c <= n);
+    if (state.courtMap) for (const c of Object.keys(state.courtMap)) if (+c > n) delete state.courtMap[c];
+    regenerate();
+  }
+  function setCourts(list) { state.courtMap = null; state.courts = list.slice().sort((a, b) => a - b); regenerate(); }
+  function toggleCourt(c) {
+    setCourts(state.courts.includes(c) ? state.courts.filter(x => x !== c) : state.courts.concat(c));
+  }
+  function setOverride(gid, val) {
+    const g = state.groups.find(x => x.id === gid);
+    g.courtsOverride = val === '' ? null : Math.max(0, Math.floor(+val) || 0);
+    regenerate();
+  }
+  function setRounds(val) {
+    const min = state.started ? Math.max(1, S.confirmedPrefix(state.rounds).length) : 1;
+    const n = Math.floor(+val);
+    if (!(n >= min) || n > 50) return setNotice('error', T('err.roundsRange', { min }));
+    state.numRounds = n;
+    regenerate();
+  }
+  // Compact view: each group a different random colour from the theme's compactPalette (seeded),
+  // stored in group.color (saved, exported). The floorplan uses court colours instead.
+  function pickCompactColors(seed) {
+    const palette = THEME.compactPalette && THEME.compactPalette.length ? THEME.compactPalette : COLORS;
+    S.pickGroupColors(palette, state.groups.length, seed).forEach((c, i) => { state.groups[i].color = c; });
+  }
+  function shuffleColors() {
+    const before = state.groups.map(g => g.color).join();
+    for (let i = 0; i < 10 && state.groups.map(g => g.color).join() === before; i++) pickCompactColors(newSeed() + i);
+  }
+  function start() {
+    const errs = startErrors();
+    if (errs.length) return setNotice('error', errs.join(' '));
+    state.courtAssignment = allocation().assignment;
+    state.seed = newSeed();
+    pickCompactColors(state.seed);
+    state.started = true;
+    state.rounds = S.scheduleState(state);
+    state.ui.tab = 'rounds';
+    state.ui.roundIdx = 0;
+  }
+  function restart() {
+    if (!confirm(T('confirm.restart'))) return;
+    state = S.restartTournament(state);
+    state.ui.roundIdx = 0;
+    editing = false; selected = null;
+    setNotice('info', T('info.restarted'));
+  }
+  function newTournament() {
+    if (!confirm(T('confirm.newTournament'))) return;
+    const ui = state.ui;
+    state = defaultState();
+    state.ui.rankFilter = ui.rankFilter;
+    editing = false; selected = null;
+  }
+  function loadDemo() {
+    if (state.players.length && !confirm(T('confirm.loadDemo'))) return;
+    const ui = state.ui;
+    state = defaultState();
+    state.ui = Object.assign(ui, { tab: 'setup', roundIdx: 0 });
+    state.groups = [
+      { id: newId('g'), name: T('demo.advanced'), color: COLORS[0], courtsOverride: null },
+      { id: newId('g'), name: T('demo.beginner'), color: COLORS[1], courtsOverride: null },
+    ];
+    DEMO_NAMES.forEach((n, i) => { addPlayer(state.groups[i < 21 ? 0 : 1].id, n).status = 'present'; });
+    state.clubCourts = 9;
+    state.courts = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    state.numRounds = 6;
+    setNotice('info', T('info.demoLoaded'));
+  }
+
+  // ---------- Views ----------
+  const views = {};
+  const section = (title, ...children) => el('section', { class: 'card' }, el('h2', {}, title), ...children);
+  const help = key => el('p', { class: 'help' }, T(key));
+
+  // locked: players read-only; groupLocked: group cannot be removed. Check-in chips stay usable.
+  function groupCard(g, locked, groupLocked) {
+    const pm = playerMap();
+    const units = S.unitsForGroup(state, g.id);
+    const ta = el('textarea', {
+      rows: 4,
+      placeholder: T(isTeams() ? 'setup.pasteTeams' : 'setup.pastePlayers'),
+      oninput: e => { pasteDrafts[g.id] = e.target.value; },
+    });
+    ta.value = pasteDrafts[g.id] || '';
+    const file = el('input', { type: 'file', accept: '.csv,.tsv,.txt,text/csv,text/plain', hidden: true,
+      onchange: e => { if (e.target.files[0]) importFile(g.id, e.target.files[0]); } });
+    const errRows = (pasteErrors[g.id] || []).map((r, i) => el('div', { class: 'paste-err' },
+      el('span', { class: 'paste-line' }, r.line),
+      el('span', { class: 'paste-why' }, T('paste.' + r.reason, { name: r.dup || '' })),
+      r.suggestion ? el('button', { onclick: () => act(() => addAs(g.id, i)) },
+        T('paste.addAs', { name: r.suggestion.join(' / ') })) : null));
+
+    const counts = {};
+    units.forEach(u => { const st = unitStatus(u); counts[st] = (counts[st] || 0) + 1; });
+    const q = searches[g.id] || '';
+    const matches = (u, text) => !text || u.members.some(id => N.key(pm.get(id).name).includes(N.key(text)));
+    const rows = units.map(u => {
+      const st = unitStatus(u);
+      const from = u.members.map(id => pm.get(id).absentFromRound).filter(x => x != null);
+      const row = el('div', { class: 'check-row st-' + st + (from.length ? ' absent' : ''), style: matches(u, q) ? null : 'display:none',
+        title: from.length ? T('setup.absentFrom', { n: Math.min(...from) + 1 }) : null },
+        u.members.map(pid => el('input', { class: 'check-name', value: pm.get(pid).name, disabled: locked,
+          onchange: e => act(() => renamePlayer(pid, e.target.value)) })),
+        el('div', { class: 'st-chips' }, STATUSES.map(x => el('button', {
+          class: 'st-chip st-' + x + (st === x ? ' on' : ''),
+          onclick: () => act(() => setStatus(u.members, x)),
+        }, T('status.' + x)))),
+        locked ? el('span') : el('button', { class: 'x', title: T('common.remove'), onclick: () => act(() => removeUnit(u.id)) }, '×'));
+      row._unit = u;
+      return row;
+    });
+    const list = el('div', { class: 'checklist' + (isTeams() ? ' teams' : '') },
+      isTeams() ? el('div', { class: 'check-head' },
+        el('span', {}, T('setup.player1')), el('span', {}, T('setup.player2')), el('span', {}, T('setup.status')), el('span')) : null,
+      rows);
+
+    return el('div', { class: 'group', style: gStyle(g.color) },
+      el('div', { class: 'group-head' },
+        el('span', { class: 'swatch' }),
+        el('input', { class: 'group-name', value: g.name, disabled: locked, onchange: e => act(() => renameGroup(g.id, e.target.value)) }),
+        el('span', { class: 'muted' }, `${units.length} ${unitWord()}`),
+        groupLocked ? null : el('button', { class: 'link danger', onclick: () => act(() => removeGroup(g.id)) }, T('setup.removeGroup'))),
+      locked ? null : el('div', { class: 'paste' }, ta,
+        el('div', { class: 'row' },
+          el('button', { onclick: () => act(() => addLines(g.id, ta.value)) }, T(isTeams() ? 'setup.addTeams' : 'setup.addPlayers')),
+          el('button', { class: 'link', title: T('paste.importTitle'), onclick: () => file.click() }, T('paste.import')), file),
+        errRows.length ? el('div', { class: 'paste-errs' }, errRows) : null),
+      units.length ? el('div', { class: 'check-tools' },
+        el('input', { type: 'search', class: 'check-search', placeholder: T('setup.search'), value: q,
+          oninput: e => {
+            searches[g.id] = e.target.value;
+            rows.forEach(r => { r.style.display = matches(r._unit, e.target.value) ? '' : 'none'; });
+          } }),
+        el('button', { disabled: !counts.pending, onclick: () => act(() => markAllPresent(g.id)) }, T('setup.markAll')),
+        el('span', { class: 'muted check-counts' },
+          STATUSES.filter(x => counts[x]).map(x => `${T('status.' + x)} ${counts[x]}`).join(' · '))) : null,
+      units.length ? list : null);
+  }
+
+  function allocationTable(locked) {
+    const alloc = locked ? null : allocation();
+    const rows = state.groups.map(g => {
+      const size = S.scheduledUnits(state, g.id).length;
+      const courts = locked ? (state.courtAssignment[g.id] || []) : (alloc.assignment[g.id] || []);
+      const load = S.groupLoad(size, courts.length, state.mode);
+      return el('tr', {},
+        el('td', {}, el('span', { class: 'swatch', style: gStyle(g.color) }), g.name),
+        el('td', { class: 'num' }, String(size)),
+        el('td', { class: 'num' }, String(courts.length)),
+        locked ? null : el('td', {}, el('input', {
+          type: 'number', min: 0, class: 'small', value: g.courtsOverride, placeholder: T('alloc.auto'), disabled: !!state.courtMap,
+          onchange: e => act(() => setOverride(g.id, e.target.value)),
+        })),
+        el('td', {}, courts.length ? courts.join(', ') : '—'),
+        el('td', { class: 'num' }, String(load.playing)),
+        el('td', { class: 'num' }, String(load.resting)));
+    });
+    const used = new Set(Object.values(locked ? state.courtAssignment : alloc.assignment).flat());
+    const idle = state.courts.filter(c => !used.has(c));
+    return el('div', {},
+      el('table', { class: 'alloc' },
+        el('thead', {}, el('tr', {},
+          ['alloc.group', isTeams() ? 'unit.Teams' : 'unit.Players', 'alloc.courts', locked ? null : 'alloc.override',
+            'alloc.courtNumbers', 'alloc.playing', 'alloc.resting'].filter(Boolean).map(h => el('th', {}, T(h))))),
+        el('tbody', {}, rows)),
+      idle.length ? el('p', { class: 'muted' }, T('alloc.unused', { list: idle.join(', ') })) : null,
+      !locked ? el('p', { class: 'muted' }, T('alloc.hint')) : null);
+  }
+
+  // Setup floorplan: courts coloured by group; click to assign (default: contiguous automatic allocation).
+  function setupFloor(fp, locked) {
+    const assign = locked ? state.courtAssignment : allocation().assignment;
+    const groupOf = {};
+    state.groups.forEach(g => (assign[g.id] || []).forEach(c => { groupOf[c] = g; }));
+    return el('div', {},
+      floorGrid(fp, n => {
+        const g = groupOf[n];
+        const atClub = n <= state.clubCourts;
+        return el('button', {
+          class: 'fcourt setup' + (g ? '' : ' unused'), style: g ? gStyle(g.color) : null,
+          disabled: locked || !atClub, onclick: () => act(() => clickCourt(n)),
+        }, el('strong', {}, T('court.n', { n })),
+        el('span', {}, !atClub ? T('floor.notAtClub') : g ? g.name : T('floor.unused')));
+      }, 'setup-floor'),
+      locked ? null : el('p', { class: 'muted' }, T('alloc.floorHint')),
+      !locked && state.courtMap ? el('p', { class: 'row' }, el('span', { class: 'muted' }, T('alloc.manual')),
+        el('button', { class: 'link', onclick: () => act(() => setCourts(state.courts)) }, T('alloc.autoBtn'))) : null);
+  }
+
+  views.setup = () => {
+    const locked = courtsLocked();
+    const pLocked = setupLocked();
+    const nConf = confirmedCount();
+    const errs = startErrors();
+    const wrap = el('div', { class: 'setup' });
+    if (state.started) {
+      const why = !editing ? T('banner.locked')
+        : nConf ? T(nConf > 1 ? 'banner.lockedConfirmedN' : 'banner.lockedConfirmed1', { n: nConf }) + T('banner.lockedRest')
+        : T('banner.free');
+      wrap.append(el('div', { class: 'banner' },
+        el('div', {}, el('strong', {}, T('banner.running')), el('span', { class: 'muted' }, ' — ' + why)),
+        el('div', { class: 'row' },
+          el('button', { class: editing ? 'primary' : '', disabled: editing && !nConf && errs.length > 0,
+            title: editing && !nConf && errs.length ? T('banner.fixErrors') : null,
+            onclick: () => act(() => { editing = !editing; }) }, T(editing ? 'banner.done' : 'banner.edit')),
+          el('button', { onclick: () => act(restart) }, T('banner.restart')),
+          el('button', { class: 'danger', onclick: () => act(newTournament) }, T('banner.new')))));
+    }
+    if (notice) wrap.append(el('div', { class: 'notice ' + notice.kind }, notice.text));
+
+    const modeBtn = (m, label, sub) => el('button', {
+      class: 'opt' + (state.mode === m ? ' active' : ''), disabled: locked && state.mode !== m,
+      onclick: () => act(() => setMode(m)),
+    }, el('strong', {}, label), el('span', {}, sub));
+    wrap.append(section(T('setup.mode'), help('help.mode'), el('div', { class: 'opts' },
+      modeBtn('americano', T('mode.americano'), T('mode.americanoSub')),
+      modeBtn('teams', T('mode.teams'), T('mode.teamsSub')))));
+
+    wrap.append(section(T('setup.players'), help('help.players'),
+      el('p', { class: 'muted' }, T('setup.groupsHint')),
+      el('div', { class: 'groups' }, state.groups.map(g => groupCard(g, pLocked, locked))),
+      !locked && state.groups.length < 4 ? el('button', { onclick: () => act(addGroup) }, T('setup.addGroup')) : null));
+
+    const courtNos = Array.from({ length: state.clubCourts || 0 }, (_, i) => i + 1);
+    wrap.append(section(T('setup.courts'), help('help.courts'),
+      el('div', { class: 'row' },
+        el('label', {}, T('setup.clubCourts'),
+          el('input', { type: 'number', min: 1, max: 40, class: 'small', value: state.clubCourts, disabled: locked,
+            onchange: e => act(() => setClubCourts(+e.target.value)) })),
+        locked ? null : el('button', { class: 'link', onclick: () => act(() => setCourts(courtNos)) }, T('setup.selectAll')),
+        locked ? null : el('button', { class: 'link', onclick: () => act(() => setCourts([])) }, T('setup.selectNone'))),
+      floorplan() ? setupFloor(floorplan(), locked) : el('div', { class: 'court-toggles' }, courtNos.map(c => el('button', {
+        class: 'court-btn' + (state.courts.includes(c) ? ' on' : ''), disabled: locked,
+        title: T('court.n', { n: c }), onclick: () => act(() => toggleCourt(c)),
+      }, String(c)))),
+      state.groups.length ? allocationTable(locked) : null));
+
+    wrap.append(section(T('setup.rounds'), help('help.rounds'),
+      el('label', {}, T('setup.numRounds'),
+        el('input', { type: 'number', min: 1, max: 50, class: 'small', value: state.numRounds, disabled: pLocked,
+          onchange: e => act(() => setRounds(e.target.value)) }))));
+
+    if (state.started) {
+      wrap.append(section(T('setup.start'), help('help.start'),
+        !nConf && errs.length ? el('ul', { class: 'errors' }, errs.map(e => el('li', {}, e))) : null,
+        el('p', {}, T('setup.runningInfo', { rounds: state.rounds.length, confirmed: nConf })),
+        el('button', { class: 'primary', onclick: () => act(() => { state.ui.tab = 'rounds'; }) }, T('setup.goRounds'))));
+    } else {
+      wrap.append(section(T('setup.start'), help('help.start'),
+        errs.length ? el('ul', { class: 'errors' }, errs.map(e => el('li', {}, e))) : null,
+        notCheckedIn() ? el('div', { class: 'notice warn' }, T('start.notChecked', { n: notCheckedIn(), unit: unitWord() })) : null,
+        el('div', { class: 'row' },
+          el('button', { class: 'primary', disabled: errs.length > 0, onclick: () => act(start) }, T('setup.startBtn')),
+          el('button', { onclick: () => act(loadDemo) }, T('setup.loadDemo')))));
+    }
+    return wrap;
+  };
+
+  function goRound(i) {
+    state.ui.roundIdx = Math.max(0, Math.min(i, state.rounds.length - 1));
+    selected = null; notice = null;
+    save(); render();
+  }
+
+  // ---------- Current-round editing ----------
+  const teamOf = pid => state.teams.find(t => t.playerIds.includes(pid));
+  const sameUnit = (a, b) => a === b || (isTeams() && teamOf(a) != null && teamOf(a) === teamOf(b));
+
+  function pick(pid) {
+    if (!selected || sameUnit(selected, pid)) { selected = selected ? null : pid; notice = null; render(); return; }
+    const res = S.swapPlayers(state, state.ui.roundIdx, selected, pid);
+    act(() => {
+      if (res.error) { setNotice('error', res.error); selected = pid; return; }
+      state.rounds = res.rounds;
+      selected = null;
+    });
+  }
+  function renameSelected() {
+    const p = playerMap().get(selected);
+    const n = prompt(T('prompt.rename', { name: p.name }), p.name);
+    if (n != null) act(() => renamePlayer(p.id, n));
+  }
+  function replaceSelected(idx) {
+    const old = playerMap().get(selected);
+    const raw = prompt(T('prompt.replace', { name: old.name, n: idx + 1 }));
+    if (raw == null) return;
+    act(() => {
+      const n = norm(raw);
+      if (!n) return setNotice('error', T('err.nameEmpty'));
+      if (nameTaken(n)) return setNotice('error', T('err.nameTaken', { name: n }));
+      const p = addPlayer(old.groupId, n);
+      old.absentFromRound = idx;
+      const sub = ids => ids.map(id => (id === old.id ? p.id : id));
+      const r = state.rounds[idx];
+      r.matches.forEach(m => { m.teamA = sub(m.teamA); m.teamB = sub(m.teamB); });
+      r.resting = sub(r.resting);
+      state.rounds = S.scheduleState(state, null, idx + 1); // keep this round, redo the later ones
+      selected = null;
+      setNotice('info', T('info.replaced', { new: n, old: old.name, n: idx + 1 }));
+    });
+  }
+  function absentSelected(idx) {
+    const p = playerMap().get(selected);
+    const who = isTeams() ? teamOf(p.id).playerIds.map(id => playerMap().get(id).name).join(' / ') : p.name;
+    if (!confirm(T('confirm.absent', { who, n: idx + 1 }))) return;
+    act(() => {
+      p.absentFromRound = idx;
+      state.rounds = S.scheduleState(state);
+      selected = null;
+    });
+  }
+  // Confirm with late players still undecided: one choice per late unit, default "Absent (match lapses)".
+  // Confirm dialog: "Confirm Round N? The lineup will be locked." plus one choice per Late player still
+  // undecided (default "Absent (match lapses)", alternative "Present").
+  function confirmCurrent(idx) {
+    const late = unitsWith(S.undecidedLate(state.rounds[idx]));
+    const pm = playerMap();
+    const dlg = el('dialog', { class: 'late-dialog' });
+    const choices = late.map(u => {
+      const name = u.members.map(id => pm.get(id).name).join(' / ');
+      const sel = el('select', {},
+        el('option', { value: 'absent' }, T('late.absent')),
+        el('option', { value: 'present' }, T('late.present')));
+      return { u, sel, row: el('label', { class: 'late-row' }, el('strong', {}, name), sel) };
+    });
+    const close = () => { dlg.close(); dlg.remove(); };
+    const ok = el('button', { class: 'primary', onclick: () => {
+      const picked = choices.map(c => [c.u.members, c.sel.value]);
+      close();
+      if (picked.length) act(() => picked.forEach(([ids, v]) => setStatus(ids, v)));
+      doConfirm(idx);
+    } }, T('confirm.btn'));
+    dlg.append(el('h3', {}, T('confirm.round', { n: idx + 1 })),
+      choices.length ? el('p', { class: 'muted' }, T('late.title', { n: idx + 1 })) : null, choices.map(c => c.row),
+      el('div', { class: 'row' }, ok, el('button', { onclick: close }, T('common.cancel'))));
+    dlg.addEventListener('cancel', () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+    ok.focus();
+  }
+  function unlockCurrent(idx) {
+    if (!confirm(T('confirm.unlock', { n: idx + 1 }))) return;
+    act(() => {
+      const res = S.unlockRound(state, idx);
+      if (res.error) return setNotice('error', res.error);
+      state.rounds = res.rounds;
+      selected = null;
+    });
+  }
+  function doConfirm(idx) {
+    act(() => {
+      const res = S.confirmRound(state, idx);
+      if (res.error) return setNotice('error', res.error);
+      state.rounds = res.rounds;
+      selected = null;
+      state.ui.roundIdx = Math.min(idx + 1, state.rounds.length - 1);
+    });
+  }
+  function regenerateSuggestion() {
+    act(() => {
+      state.seed = newSeed();
+      state.rounds = S.scheduleState(state);
+      selected = null;
+    });
+  }
+  function toggleFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+  }
+
+  // Score fields of the shown round, in keyboard order (court by court, team A then B). Rebuilt per render.
+  let scoreFields = [];
+  function focusField(i) {
+    const f = scoreFields[Math.max(0, Math.min(i, scoreFields.length - 1))];
+    if (f) { f.inp.focus(); f.inp.select(); }
+  }
+  // Games per side: empty or a non-negative integer. Saved on every keystroke without re-render.
+  // Enter / Tab / → / ↓ = next field, Shift+Tab / ← / ↑ = previous; auto-advance after a complete entry.
+  function scoreInput(m, key, label, onChange) {
+    const inp = el('input', { type: 'text', inputmode: 'numeric', pattern: '[0-9]*', autocomplete: 'off', class: 'score',
+      'aria-label': label, value: m[key] == null ? '' : m[key] });
+    const field = { m, key, inp };
+    scoreFields.push(field);
+    const index = () => scoreFields.indexOf(field);
+    inp.addEventListener('input', () => {
+      const raw = inp.value.trim();
+      const ok = raw === '' || /^\d{1,3}$/.test(raw);
+      inp.classList.toggle('invalid', !ok);
+      m[key] = ok && raw !== '' ? Number(raw) : null;
+      save();
+      if (onChange) onChange();
+      if (ok && R.autoAdvance(raw) && index() < scoreFields.length - 1) focusField(index() + 1);
+    });
+    inp.addEventListener('keydown', e => {
+      const next = e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey);
+      const prev = e.key === 'ArrowUp' || e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey);
+      if (!next && !prev) return;
+      const i = index() + (next ? 1 : -1);
+      if (i < 0 || i >= scoreFields.length) { if (e.key !== 'Tab') e.preventDefault(); return; } // Tab leaves the list
+      e.preventDefault();
+      focusField(i);
+    });
+    inp.addEventListener('focus', () => inp.select());
+    return inp;
+  }
+
+  views.rounds = () => {
+    if (!state.started || !state.rounds.length) {
+      return el('div', { class: 'card empty' }, T('rounds.empty'));
+    }
+    const idx = Math.max(0, Math.min(state.ui.roundIdx, state.rounds.length - 1));
+    const round = state.rounds[idx];
+    const pm = playerMap();
+    const gm = new Map(state.groups.map(g => [g.id, g]));
+    const name = id => (pm.get(id) || { name: '?' }).name;
+    const label = r => T(r.status === 'confirmed' ? 'status.confirmed' : 'status.draft');
+    scoreFields = [];
+    const found = foundIds(); // Find player search → highlighted on the court cards
+
+    const editIdx = S.editableIndex(state.rounds);
+    const editable = idx === editIdx && round.status === 'draft';
+    const isSel = id => selected != null && sameUnit(selected, id);
+    // Names fit the card (see fitNames): shrink first, then last part as initial; full name on hover/tap.
+    const nameAttrs = id => ({ title: name(id), 'data-full': name(id), 'data-short': N.shortName(name(id)) });
+    const pname = (id, cls) => (editable
+      ? el('button', Object.assign(nameAttrs(id), { class: `pname nm ${cls || ''}${isSel(id) ? ' sel' : ''}${found.has(id) ? ' found' : ''}`, onclick: () => pick(id) }), name(id))
+      : el('span', Object.assign(nameAttrs(id), { class: 'nm ' + (cls || '') + (found.has(id) ? ' found' : ''), onclick: tapFull }), name(id)));
+    const fp = floorplan();
+    const viewMode = fp && state.ui.roundsView !== 'compact' ? 'floorplan' : 'compact';
+
+    const bar = el('div', { class: 'round-bar' },
+      el('button', { class: 'link back', onclick: () => act(() => { state.ui.tab = 'setup'; }) }, T('rounds.back')),
+      el('button', { class: 'nav', disabled: idx === 0, title: T('rounds.prev'), 'aria-label': T('rounds.prevAria'), onclick: () => goRound(idx - 1) }, '‹'),
+      el('div', { class: 'pills' }, state.rounds.map((r, i) => el('button', {
+        class: `pill ${r.status}${i === idx ? ' active' : ''}`, title: T('rounds.pill', { n: i + 1, status: label(r) }),
+        onclick: () => goRound(i),
+      }, String(i + 1)))),
+      el('button', { class: 'nav next', disabled: idx === state.rounds.length - 1, title: T('rounds.nextTitle'), onclick: () => goRound(idx + 1) }, T('rounds.next')),
+      fp ? el('div', { class: 'seg' }, ['compact', 'floorplan'].map(v => el('button', {
+        class: viewMode === v ? 'active' : '', onclick: () => act(() => { state.ui.roundsView = v; }),
+      }, T('view.' + v)))) : null,
+      viewMode === 'compact' ? el('button', { onclick: () => act(shuffleColors) }, T('rounds.shuffleColours')) : null,
+      el('button', { class: 'fs-btn', onclick: toggleFullscreen }, T(document.fullscreenElement ? 'rounds.exitFullscreen' : 'rounds.fullscreen')));
+
+    const title = el('h2', { class: 'round-title' }, T('rounds.title', { n: idx + 1, total: state.rounds.length }),
+      el('span', { class: 'badge ' + round.status }, label(round)));
+
+    // Scores only in confirmed rounds; names are clickable only in the current (editable) round.
+    const resultRows = new Map(); // match → {scoreA: row, scoreB: row} for the live winner highlight
+    const team = (m, key, label) => {
+      const ids = m[key === 'scoreA' ? 'teamA' : 'teamB'];
+      const isLate = id => m.pending && m.late.includes(id);
+      const rows = resultRows.get(m) || resultRows.set(m, {}).get(m);
+      const refresh = () => ['scoreA', 'scoreB'].forEach(k => {
+        if (rows[k]) rows[k].className = 'team-row ' + R.resultClass(m, k);
+      });
+      const row = rows[key] = el('div', { class: 'team-row ' + R.resultClass(m, key) },
+        el('div', { class: 'tnames', title: ids.map(name).join(' / ') },
+          ids.map((id, i) => [i ? ' / ' : null,
+            isLate(id) && viewMode === 'floorplan'
+              ? el('span', Object.assign(nameAttrs(id), { class: 'late-slot nm', onclick: tapFull }), T('rounds.lateSlot', { name: name(id) }))
+              : isLate(id) ? el('span', Object.assign(nameAttrs(id), { class: 'nm', onclick: tapFull }), name(id)) : pname(id)])),
+        round.status === 'confirmed' ? scoreInput(m, key, label, refresh) : null);
+      return row;
+    };
+
+
+    let tools = null;
+    if (editable) {
+      const sp = selected && playerMap().get(selected);
+      tools = el('div', { class: 'edit-tools' },
+        el('div', { class: 'row' },
+          el('button', { class: 'primary', onclick: () => confirmCurrent(idx) }, T('rounds.confirm', { n: idx + 1 })),
+          el('button', { onclick: regenerateSuggestion }, T('rounds.regenerate')),
+          el('span', { class: 'muted' }, T('rounds.editHint'))),
+        sp ? el('div', { class: 'row sel-bar' },
+          el('span', {}, T('rounds.selected'), el('strong', {}, isTeams() ? teamOf(sp.id).playerIds.map(name).join(' / ') : sp.name)),
+          el('button', { onclick: renameSelected }, T('rounds.renameSel', { name: sp.name })),
+          isTeams() ? null : el('button', { onclick: () => replaceSelected(idx) }, T('rounds.replace')),
+          el('button', { class: 'danger', onclick: () => absentSelected(idx) }, T(isTeams() ? 'rounds.absentTeam' : 'rounds.absent')),
+          el('button', { class: 'link', onclick: () => { selected = null; render(); } }, T('common.cancel'))) : null);
+    } else if (round.status === 'draft') {
+      tools = el('p', { class: 'muted' }, T('rounds.suggestedOnly', { n: editIdx + 1 }));
+    } else if (idx === confirmedCount() - 1) {
+      tools = el('div', { class: 'edit-tools' }, el('div', { class: 'row' },
+        el('button', { class: 'link danger', onclick: () => unlockCurrent(idx) }, T('rounds.unlock'))));
+    }
+    const msg = notice && state.ui.tab === 'rounds' ? el('div', { class: 'notice ' + notice.kind }, notice.text) : null;
+
+    const uname = u => u.members.map(name).join(' / ');
+    const lateButtons = (m, short) => (m.pending && editable ? el('div', { class: 'late-actions' }, unitsWith(m.late).map(u => [
+      el('button', { onclick: () => act(() => setStatus(u.members, 'present')) }, short ? T('rounds.present') : T('rounds.arrived', { name: uname(u) })),
+      el('button', { class: 'danger', onclick: () => act(() => setStatus(u.members, 'absent')) }, short ? T('rounds.absentBtn') : T('rounds.lateAbsent', { name: uname(u) })),
+    ])) : null);
+    // Floorplan: every court on its grid position; pending court striped; courts without a match grey "Unused".
+    const byCourt = new Map(round.matches.map(m => [m.court, m]));
+    const courtColors = fp && fp.courtColors || {};
+    const floorCards = () => floorGrid(fp, n => {
+      const m = byCourt.get(n);
+      const cc = courtColors[n];
+      if (!m) {
+        // Unused: light greyish tint (~25% court colour on light grey).
+        const tint = cc ? mixHex(cc, cssVar('--line'), 0.25) : null;
+        return el('div', { class: 'fcourt unused' + (tint ? ' tinted' : ''), style: tint ? gStyle(tint) : null },
+          el('div', { class: 'fcourt-head' }, T('court.n', { n })), el('div', { class: 'fcourt-unused' }, T('floor.unused')));
+      }
+      const g = gm.get(m.groupId) || { name: '', color: null };
+      return el('div', { class: 'fcourt court' + (m.pending ? ' pending' : ''), style: gStyle(cc || g.color) },
+        el('div', { class: 'fcourt-head' }, T('court.n', { n }),
+          el('span', { class: 'group-badge', style: gStyle(g.color) }, g.name)),
+        team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
+        lateButtons(m, true));
+    }, 'rounds-floor' + (round.status === 'draft' ? ' draft' : ''));
+    const cards = viewMode === 'floorplan' ? floorCards() : el('div', { class: 'courts' + (round.status === 'draft' ? ' draft' : '') }, round.matches.map(m => {
+      const g = gm.get(m.groupId) || { name: '', color: null };
+      const lateUnits = m.pending ? unitsWith(m.late) : [];
+      return el('div', { class: 'court' + (m.pending ? ' pending' : ''), style: gStyle(g.color) },
+        el('div', { class: 'court-head' }, T('rounds.court', { n: m.court, group: g.name })),
+        m.pending ? el('div', { class: 'waiting' }, T('rounds.waitingFor', { names: lateUnits.map(uname).join(', ') })) : null,
+        team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
+        lateButtons(m, false));
+    }));
+    const order = R.scoreOrder(round.matches).map(o => o.court + o.key);
+    scoreFields.sort((a, b) => order.indexOf(a.m.court + a.key) - order.indexOf(b.m.court + b.key));
+    const lapsed = (round.lapsed || []).map(c => el('p', { class: 'muted' }, T('rounds.lapsed', { n: c })));
+
+    const inGroup = (list, g) => (list || []).filter(id => (pm.get(id) || {}).groupId === g.id).sort((a, b) => name(a).localeCompare(name(b)));
+    const groupsResting = state.groups.map(g => ({ g, ids: inGroup(round.resting, g), late: inGroup(round.late, g) }))
+      .filter(x => x.ids.length || x.late.length);
+    // Late players not on a court wait here: no rest credit. Click (current round) to resolve them.
+    const lateChip = id => (editable
+      ? el('button', { class: 'chip late', title: T('rounds.arrived', { name: name(id) }),
+        onclick: () => act(() => setStatus(unitsWith([id])[0].members, 'present')) }, name(id), el('small', {}, ' ' + T('rounds.lateLabel')))
+      : el('span', { class: 'chip late' }, name(id), el('small', {}, ' ' + T('rounds.lateLabel'))));
+    const resting = el('div', { class: 'resting' }, el('h3', {}, T('rounds.resting')),
+      groupsResting.length ? groupsResting.map(({ g, ids, late }) => el('div', { class: 'rest-group', style: gStyle(g.color) },
+        el('span', { class: 'rest-label' }, g.name),
+        ids.map(id => pname(id, 'chip')), late.map(lateChip))) : el('p', { class: 'muted' }, T('rounds.nobodyRests')));
+
+    return el('div', { class: 'rounds' }, bar, title, msg, tools, lapsed, cards, resting);
+  };
+
+  const notStarted = () => el('div', { class: 'card empty' }, T('rounds.empty'));
+
+  let findQuery = '';         // Find player search text (not persisted)
+  // Players matching the Find search (case/space-insensitive); empty search → none.
+  function foundIds() {
+    const q = N.key(findQuery);
+    return new Set(q ? state.players.filter(p => N.key(p.name).includes(q)).map(p => p.id) : []);
+  }
+  // Colour dots, one per round: green played, red rested, grey absent; pale = suggested.
+  function dots(pid) {
+    return el('span', { class: 'dots' }, R.roundDots(state.rounds, pid).map((d, i) => el('span', {
+      class: `dot ${d.kind}${d.suggested ? ' suggested' : ''}`,
+      title: T('dot.' + d.kind, { n: i + 1 }) + (d.suggested ? T('dot.suggested') : ''),
+    })));
+  }
+
+  // Where is each player in the round selected on the Rounds tab. Click → that round, player highlighted.
+  views.find = () => {
+    if (!state.started || !state.rounds.length) return notStarted();
+    const ci = Math.max(0, Math.min(state.ui.roundIdx, state.rounds.length - 1));
+    const round = state.rounds[ci];
+    const gm = new Map(state.groups.map(g => [g.id, g]));
+    const where = new Map();
+    round.matches.forEach(m => m.teamA.concat(m.teamB).forEach(id => where.set(id, T('court.n', { n: m.court }))));
+    round.resting.forEach(id => where.set(id, null));
+    (round.late || []).forEach(id => where.set(id, T('find.late')));
+    round.matches.filter(m => m.pending).forEach(m => m.late.forEach(id => where.set(id, T('find.late') + ' · ' + T('court.n', { n: m.court }))));
+    const players = state.players.slice().sort((a, b) => a.name.localeCompare(b.name));
+    const items = players.map(p => {
+      const court = where.get(p.id);
+      const w = court || T(where.has(p.id) ? 'find.resting' : 'find.absent');
+      const item = el('button', { class: 'find-item', style: gStyle((gm.get(p.groupId) || {}).color),
+        onclick: () => act(() => { findQuery = p.name; state.ui.tab = 'rounds'; }) },
+        el('span', { class: 'find-name' }, p.name),
+        dots(p.id),
+        el('span', { class: 'find-where' + (court ? '' : ' off') }, w));
+      return { item, key: N.key(p.name) };
+    });
+    const empty = el('p', { class: 'muted' }, T('find.noMatch'));
+    // Filter in place so the search box keeps focus while typing.
+    const apply = () => {
+      const q = N.key(findQuery);
+      let shown = 0;
+      for (const { item, key } of items) { const ok = key.includes(q); item.hidden = !ok; shown += ok; }
+      empty.hidden = shown > 0;
+    };
+    const search = el('input', { type: 'search', class: 'find-search', placeholder: T('find.search'),
+      'aria-label': T('find.searchAria'), value: findQuery });
+    search.addEventListener('input', () => { findQuery = search.value; apply(); });
+    apply();
+    setTimeout(() => search.focus(), 0);
+    return el('div', { class: 'find' },
+      el('h2', { class: 'round-title' }, T('find.round', { n: ci + 1 }),
+        el('span', { class: 'badge ' + round.status }, T(round.status === 'confirmed' ? 'status.confirmed' : 'status.draft'))),
+      search, empty,
+      el('div', { class: 'find-list' }, items.map(x => x.item)));
+  };
+
+  function rankTable(title, color, rows) {
+    const gm = new Map(state.groups.map(g => [g.id, g]));
+    const diff = d => (d > 0 ? '+' + d : String(d));
+    const head = ['rank', isTeams() ? 'team' : 'name', 'group', 'rounds', 'played', 'rested', 'won', 'lost', 'diff', 'wdl', 'avg']
+      .map(k => T('rank.' + k));
+    return el('section', { class: 'card rank-card', style: gStyle(color) },
+      el('h2', {}, color ? el('span', { class: 'swatch' }) : null, title),
+      el('table', { class: 'rank' },
+        el('thead', {}, el('tr', {}, head.map((h, i) => el('th', { class: i > 3 ? 'num' : '' }, h)))),
+        el('tbody', {}, rows.map(r => el('tr', {},
+          el('td', { class: 'num' }, String(r.rank)),
+          el('td', { class: 'rname' }, r.name),
+          el('td', {}, el('span', { class: 'swatch', style: gStyle((gm.get(r.groupId) || {}).color) }), r.group),
+          el('td', {}, dots(isTeams() ? (state.teams.find(t => t.id === r.id) || { playerIds: [r.id] }).playerIds[0] : r.id)),
+          el('td', { class: 'num' }, String(r.played)),
+          el('td', { class: 'num' }, String(r.rested)),
+          el('td', { class: 'num strong' }, String(r.won)),
+          el('td', { class: 'num' }, String(r.lost)),
+          el('td', { class: 'num' }, diff(r.diff)),
+          el('td', { class: 'num' }, `${r.w}-${r.d}-${r.l}`),
+          el('td', { class: 'num muted' }, r.played ? r.avg.toFixed(1) : '—'))))));
+  }
+
+  views.rankings = () => {
+    if (!state.started || !state.rounds.length) return notStarted();
+    const f = state.ui.rankFilter === 'all' ? 'all' : 'group';
+    const bar = el('div', { class: 'row rank-bar' }, [['group', T('rank.perGroup')], ['all', T('rank.all')]].map(([k, label]) =>
+      el('button', { class: f === k ? 'active' : '', onclick: () => act(() => { state.ui.rankFilter = k; }) }, label)));
+    bar.append(el('button', { class: 'primary final-btn', onclick: () => { finalOpen = true; render(); } }, T('rank.final')));
+    const tables = f === 'all'
+      ? [rankTable(T('rank.allGroups'), null, R.computeRankings(state, null))]
+      : state.groups.map(g => rankTable(g.name, g.color, R.computeRankings(state, g.id)));
+    return el('div', { class: 'rankings' }, bar, tables, finalOpen ? finalStandings() : null);
+  };
+
+  // Full-screen projector overlay: per group, top 3 highlighted. Esc or ✕ closes.
+  let finalOpen = false;
+  function finalStandings() {
+    const close = () => { finalOpen = false; render(); };
+    const diff = d => (d > 0 ? '+' + d : String(d));
+    const cols = state.groups.map(g => el('section', { class: 'fs-group', style: gStyle(g.color) },
+      el('h2', {}, g.name),
+      el('table', { class: 'fs-table' },
+        el('thead', {}, el('tr', {},
+          el('th', { class: 'num' }, T('final.rank')), el('th', {}, T(isTeams() ? 'rank.team' : 'rank.name')),
+          el('th', { class: 'num' }, T('rank.won')), el('th', { class: 'num' }, T('rank.diff')))),
+        el('tbody', {}, R.computeRankings(state, g.id).map(r => el('tr', { class: r.rank <= 3 ? `top top${r.rank}` : '' },
+          el('td', { class: 'num' }, String(r.rank)),
+          el('td', { class: 'fs-name', title: r.name }, r.name),
+          el('td', { class: 'num strong' }, String(r.won)),
+          el('td', { class: 'num' }, diff(r.diff))))))));
+    return el('div', { class: 'final-overlay', role: 'dialog', 'aria-label': T('rank.final') },
+      el('div', { class: 'final-head' }, el('h1', {}, LOGOS.ring ? el('img', { class: 'ring', src: LOGOS.ring, alt: '' }) : null, T('rank.final')),
+        el('button', { class: 'final-close', 'aria-label': T('final.close'), title: T('final.close'), onclick: close }, '✕')),
+      el('div', { class: 'final-groups' }, cols));
+  }
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = el('a', { href: url, download: `padel-americano-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function importJson(text) {
+    let data;
+    try { data = JSON.parse(text); } catch (e) { return setNotice('error', T('err.importJson')); }
+    if (!data || !Array.isArray(data.players) || !Array.isArray(data.groups) || !Array.isArray(data.rounds)) {
+      return setNotice('error', T('err.importFormat'));
+    }
+    if (state.players.length && !confirm(T('confirm.import'))) return;
+    const ui = Object.assign(defaultState().ui, data.ui, { tab: 'data' });
+    state = Object.assign(defaultState(), data, { ui });
+    editing = false; selected = null;
+    setNotice('info', T('info.imported', { players: state.players.length, rounds: state.rounds.length }));
+  }
+
+  views.data = () => {
+    const file = el('input', { type: 'file', accept: '.json,application/json', hidden: true,
+      onchange: e => { const f = e.target.files[0]; if (f) f.text().then(t => act(() => importJson(t))); } });
+    return el('div', {},
+      notice ? el('div', { class: 'notice ' + notice.kind }, notice.text) : null,
+      section(T('data.title'),
+        el('p', { class: 'muted' }, T('data.hint')),
+        el('div', { class: 'row' },
+          el('button', { onclick: exportJson }, T('data.export')),
+          el('button', { onclick: () => file.click() }, T('data.import')), file,
+          el('button', { class: 'danger', onclick: () => act(() => {
+            if (!confirm(T('confirm.reset'))) return;
+            state = defaultState(); state.ui.tab = 'data';
+            editing = false; selected = null;
+          }) }, T('data.reset')))),
+      state.started && state.rounds.length ? section(T('data.fairness'),
+        el('pre', { class: 'fair' }, S.formatFairness(S.fairnessReport(state)))) : null);
+  };
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && finalOpen) { finalOpen = false; render(); return; }
+    if (e.key === 'Escape' && selected) { selected = null; render(); return; }
+    if (state.ui.tab !== 'rounds' || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      goRound(state.ui.roundIdx + (e.key === 'ArrowRight' ? 1 : -1));
+    }
+  });
+  document.addEventListener('fullscreenchange', render);
+
+  // ---------- Help ----------
+  function modal(cls, ...children) {
+    const dlg = el('dialog', { class: 'late-dialog ' + cls }, ...children);
+    dlg.addEventListener('close', () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+    return dlg;
+  }
+  // "?" per screen: help for the current tab, plus the tour.
+  function showHelp() {
+    const dlg = modal('help-dialog', el('h3', {}, T('help.title') + ' — ' + T('tab.' + state.ui.tab)),
+      el('p', {}, T('help.screen.' + state.ui.tab)),
+      el('div', { class: 'row' },
+        el('button', { class: 'primary', onclick: () => dlg.close() }, T('help.close')),
+        el('button', { onclick: () => { dlg.close(); showTour(); } }, T('help.tour'))));
+  }
+  // First-run tour: 4 steps, skippable, shown once (flag in localStorage).
+  const TOUR_KEY = 'padel-americano-tour-done';
+  function showTour() {
+    let step = 1;
+    const total = 4;
+    const body = el('div');
+    const done = () => { try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) { /* ignore */ } dlg.close(); };
+    const draw = () => body.replaceChildren(
+      el('p', { class: 'muted' }, T('tour.step', { n: step, total })),
+      el('h3', {}, T('tour.title' + step)), el('p', {}, T('tour.text' + step)),
+      el('div', { class: 'row' },
+        el('button', { class: 'primary', onclick: () => { if (step < total) { step++; draw(); } else done(); } },
+          T(step < total ? 'tour.next' : 'tour.done')),
+        step < total ? el('button', { class: 'link', onclick: done }, T('tour.skip')) : null));
+    const dlg = modal('tour-dialog', body);
+    dlg.addEventListener('cancel', done);
+    draw();
+  }
+  function maybeTour() {
+    let seen = true;
+    try { seen = !!localStorage.getItem(TOUR_KEY); } catch (e) { /* storage blocked: skip the tour */ }
+    if (!seen) showTour();
+  }
+
+  function render() {
+    renderTabs();
+    const view = document.getElementById('view');
+    const fn = views[state.ui.tab];
+    view.replaceChildren(fn ? fn() : el('p', {}, ''));
+    requestAnimationFrame(() => fitNames(view));
+  }
+
+  // Shrink a name line (down to 65%) until it fits; still too wide → names in short form.
+  const nameText = (n, which) => (n.classList.contains('late-slot') ? T('rounds.lateSlot', { name: n.dataset[which] }) : n.dataset[which]);
+  function fitNames(root) {
+    root.querySelectorAll('.tnames').forEach(box => {
+      box.style.fontSize = '';
+      const names = box.querySelectorAll('.nm[data-short]');
+      names.forEach(n => { delete n.dataset.fitted; n.textContent = nameText(n, 'full'); });
+      if (box.scrollWidth <= box.clientWidth) return;
+      const base = parseFloat(getComputedStyle(box).fontSize);
+      for (let size = base - 1; size >= base * 0.65 && box.scrollWidth > box.clientWidth; size--) box.style.fontSize = size + 'px';
+      if (box.scrollWidth > box.clientWidth) {
+        names.forEach(n => { n.dataset.fitted = '1'; n.textContent = nameText(n, 'short'); });
+      }
+    });
+  }
+  // Tap a shortened name to toggle the full name.
+  function tapFull(e) {
+    const n = e.currentTarget;
+    if (!n.dataset.fitted) return;
+    n.textContent = n.textContent === nameText(n, 'full') ? nameText(n, 'short') : nameText(n, 'full');
+  }
+  let fitTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(() => fitNames(document.getElementById('view')), 100);
+  });
+
+  render();
+  maybeTour();
+})();
+</script>
+</body>
+</html>
