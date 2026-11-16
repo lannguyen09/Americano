@@ -65,6 +65,7 @@
 
   // ---------- Helpers ----------
   const S = window.Scheduler;
+  const N = window.Names;
   const R = window.Ranking;
   // Default group colours come from the CSS variables --group-1..4 (set by the theme).
   const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -86,6 +87,9 @@
 
   let notice = null;          // {kind: 'error'|'info', text}
   const pasteDrafts = {};     // textarea content per group id (not persisted)
+  const pasteErrors = {};     // rejected rows per group id: [{line, names, reason, dup, suggestion}] (not persisted)
+  const searches = {};        // checklist search text per group id (not persisted)
+  const STATUSES = ['pending', 'present', 'late', 'absent'];
   let editing = false;        // "Edit setup" unlocked while the tournament runs (not persisted)
   let selected = null;        // player id selected for a swap in the current round (not persisted)
 
@@ -99,8 +103,8 @@
   function setNotice(kind, text) { notice = { kind, text }; }
 
   function nameTaken(name, exceptId) {
-    const k = norm(name).toLowerCase();
-    return state.players.some(p => p.id !== exceptId && p.name.toLowerCase() === k);
+    const k = N.key(name);
+    return state.players.some(p => p.id !== exceptId && N.key(p.name) === k);
   }
   function inConfirmedRound(pid) {
     return state.rounds.some(r => r.status === 'confirmed' &&
@@ -128,9 +132,12 @@
   }
   function allocation() {
     return S.allocateCourts(state.groups.map(g => ({
-      id: g.id, name: g.name, size: S.unitsForGroup(state, g.id).length, override: g.courtsOverride,
+      id: g.id, name: g.name, size: S.scheduledUnits(state, g.id).length, override: g.courtsOverride,
     })), state.courts, state.mode);
   }
+  // Units not checked in (status 'pending'): excluded from the schedule.
+  const notCheckedIn = () => state.groups.reduce((n, g) =>
+    n + S.unitsForGroup(state, g.id).filter(u => !u.scheduled && unitStatus(u) === 'pending').length, 0);
   function startErrors() {
     const errs = [];
     if (!state.groups.length) errs.push(T('err.noGroup'));
@@ -171,39 +178,72 @@
     }
     state.groups.find(g => g.id === gid).name = name;
   }
-  function addPlayer(gid, name) {
-    const p = { id: newId('p'), name, groupId: gid, absentFromRound: null };
+  function addPlayer(gid, name, level) {
+    const p = { id: newId('p'), name, groupId: gid, absentFromRound: null, status: 'pending' };
+    if (level) p.level = isNaN(+level) ? level : +level;
     state.players.push(p);
     return p;
   }
+  function addUnit(gid, names, level) {
+    if (isTeams()) {
+      const a = addPlayer(gid, names[0]), b = addPlayer(gid, names[1]);
+      state.teams.push({ id: newId('t'), groupId: gid, playerIds: [a.id, b.id] });
+    } else addPlayer(gid, names[0], level);
+  }
+  // Valid lines are added; rejected lines stay in the box and are listed per line with the reason.
   function addLines(gid, text) {
-    const rejected = [];
-    let added = 0;
-    for (const line of text.split('\n').map(norm).filter(Boolean)) {
-      if (isTeams()) {
-        const parts = line.split('/').map(norm);
-        if (parts.length !== 2 || !parts[0] || !parts[1] ||
-            parts[0].toLowerCase() === parts[1].toLowerCase() || nameTaken(parts[0]) || nameTaken(parts[1])) {
-          rejected.push(line); continue;
-        }
-        const a = addPlayer(gid, parts[0]), b = addPlayer(gid, parts[1]);
-        state.teams.push({ id: newId('t'), groupId: gid, playerIds: [a.id, b.id] });
-      } else {
-        if (nameTaken(line)) { rejected.push(line); continue; }
-        addPlayer(gid, line);
-      }
-      added++;
+    const rows = N.parseLines(text, { teams: isTeams(), taken: state.players.map(p => p.name) });
+    const bad = rows.filter(r => !r.ok);
+    rows.filter(r => r.ok).forEach(r => addUnit(gid, r.names, r.level));
+    pasteDrafts[gid] = bad.map(r => r.raw).join('\n');
+    pasteErrors[gid] = bad;
+    if (rows.length > bad.length) regenerate();
+  }
+  // "Add as Jan (2)": add a rejected duplicate row under its suggested name.
+  function addAs(gid, i) {
+    const row = (pasteErrors[gid] || [])[i];
+    if (!row || !row.suggestion) return;
+    if (row.suggestion.some(n => nameTaken(n))) {
+      // Suggestion got taken meanwhile: recompute from current names.
+      const again = N.parseLines(row.raw, { teams: isTeams(), taken: state.players.map(p => p.name) })[0];
+      if (!again || !again.suggestion) return;
+      row.suggestion = again.suggestion;
     }
-    pasteDrafts[gid] = rejected.join('\n');
-    if (rejected.length) {
-      const why = T(isTeams() ? 'paste.whyTeams' : 'paste.whyPlayers');
-      setNotice('error', T('paste.skipped', { added, skipped: rejected.length, why }));
-    } else if (added) setNotice('info', T('paste.added', { n: added, unit: unitWord() }));
-    if (added) regenerate();
+    addUnit(gid, row.suggestion, row.level);
+    pasteErrors[gid] = pasteErrors[gid].filter(r => r !== row);
+    const lines = (pasteDrafts[gid] || '').split('\n');
+    const at = lines.indexOf(row.raw);
+    if (at >= 0) lines.splice(at, 1);
+    pasteDrafts[gid] = lines.join('\n');
+    regenerate();
+  }
+  function importFile(gid, file) {
+    const reader = new FileReader();
+    reader.onload = () => act(() => {
+      const text = N.importToText(String(reader.result), isTeams());
+      addLines(gid, [pasteDrafts[gid] || '', text].filter(Boolean).join('\n'));
+    });
+    reader.readAsText(file);
+  }
+  // Check-in: status per player; in teams mode a team's chips set both players.
+  function unitStatus(u) {
+    const pm = playerMap();
+    const st = u.members.map(id => pm.get(id).status || 'present');
+    return st.every(x => x === st[0]) ? st[0] : 'pending';
+  }
+  function setStatus(memberIds, status) {
+    const ids = new Set(memberIds);
+    state.players.forEach(p => { if (ids.has(p.id)) p.status = status; });
+    regenerate();
+  }
+  function markAllPresent(gid) {
+    state.players.forEach(p => { if (p.groupId === gid && (p.status || 'present') === 'pending') p.status = 'present'; });
+    regenerate();
   }
   function renamePlayer(pid, name) {
     name = norm(name);
     if (!name) return setNotice('error', T('err.nameEmpty'));
+    name = N.capitalise(name);
     if (nameTaken(name, pid)) return setNotice('error', T('err.nameTaken', { name }));
     playerMap().get(pid).name = name;
   }
@@ -272,7 +312,7 @@
       { id: newId('g'), name: T('demo.advanced'), color: COLORS[0], courtsOverride: null },
       { id: newId('g'), name: T('demo.beginner'), color: COLORS[1], courtsOverride: null },
     ];
-    DEMO_NAMES.forEach((n, i) => addPlayer(state.groups[i < 21 ? 0 : 1].id, n));
+    DEMO_NAMES.forEach((n, i) => { addPlayer(state.groups[i < 21 ? 0 : 1].id, n).status = 'present'; });
     state.clubCourts = 9;
     state.courts = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     state.numRounds = 6;
@@ -283,7 +323,7 @@
   const views = {};
   const section = (title, ...children) => el('section', { class: 'card' }, el('h2', {}, title), ...children);
 
-  // locked: players read-only; groupLocked: group cannot be removed.
+  // locked: players read-only; groupLocked: group cannot be removed. Check-in chips stay usable.
   function groupCard(g, locked, groupLocked) {
     const pm = playerMap();
     const units = S.unitsForGroup(state, g.id);
@@ -293,6 +333,38 @@
       oninput: e => { pasteDrafts[g.id] = e.target.value; },
     });
     ta.value = pasteDrafts[g.id] || '';
+    const file = el('input', { type: 'file', accept: '.csv,.tsv,.txt,text/csv,text/plain', hidden: true,
+      onchange: e => { if (e.target.files[0]) importFile(g.id, e.target.files[0]); } });
+    const errRows = (pasteErrors[g.id] || []).map((r, i) => el('div', { class: 'paste-err' },
+      el('span', { class: 'paste-line' }, r.line),
+      el('span', { class: 'paste-why' }, T('paste.' + r.reason, { name: r.dup || '' })),
+      r.suggestion ? el('button', { onclick: () => act(() => addAs(g.id, i)) },
+        T('paste.addAs', { name: r.suggestion.join(' / ') })) : null));
+
+    const counts = {};
+    units.forEach(u => { const st = unitStatus(u); counts[st] = (counts[st] || 0) + 1; });
+    const q = searches[g.id] || '';
+    const matches = (u, text) => !text || u.members.some(id => N.key(pm.get(id).name).includes(N.key(text)));
+    const rows = units.map(u => {
+      const st = unitStatus(u);
+      const from = u.members.map(id => pm.get(id).absentFromRound).filter(x => x != null);
+      const row = el('div', { class: 'check-row st-' + st + (from.length ? ' absent' : ''), style: matches(u, q) ? null : 'display:none',
+        title: from.length ? T('setup.absentFrom', { n: Math.min(...from) + 1 }) : null },
+        u.members.map(pid => el('input', { class: 'check-name', value: pm.get(pid).name, disabled: locked,
+          onchange: e => act(() => renamePlayer(pid, e.target.value)) })),
+        el('div', { class: 'st-chips' }, STATUSES.map(x => el('button', {
+          class: 'st-chip st-' + x + (st === x ? ' on' : ''),
+          onclick: () => act(() => setStatus(u.members, x)),
+        }, T('status.' + x)))),
+        locked ? el('span') : el('button', { class: 'x', title: T('common.remove'), onclick: () => act(() => removeUnit(u.id)) }, '×'));
+      row._unit = u;
+      return row;
+    });
+    const list = el('div', { class: 'checklist' + (isTeams() ? ' teams' : '') },
+      isTeams() ? el('div', { class: 'check-head' },
+        el('span', {}, T('setup.player1')), el('span', {}, T('setup.player2')), el('span', {}, T('setup.status')), el('span')) : null,
+      rows);
+
     return el('div', { class: 'group', style: gStyle(g.color) },
       el('div', { class: 'group-head' },
         el('span', { class: 'swatch' }),
@@ -300,20 +372,26 @@
         el('span', { class: 'muted' }, `${units.length} ${unitWord()}`),
         groupLocked ? null : el('button', { class: 'link danger', onclick: () => act(() => removeGroup(g.id)) }, T('setup.removeGroup'))),
       locked ? null : el('div', { class: 'paste' }, ta,
-        el('button', { onclick: () => act(() => addLines(g.id, ta.value)) }, T(isTeams() ? 'setup.addTeams' : 'setup.addPlayers'))),
-      el('div', { class: 'roster' }, units.map(u => el('div', { class: 'roster-item' + (u.absentFromRound != null ? ' absent' : ''),
-        title: u.absentFromRound != null ? T('setup.absentFrom', { n: u.absentFromRound + 1 }) : null },
-        u.members.map((pid, i) => [
-          i ? el('span', { class: 'muted' }, '/') : null,
-          el('input', { value: pm.get(pid).name, disabled: locked, onchange: e => act(() => renamePlayer(pid, e.target.value)) }),
-        ]),
-        locked ? null : el('button', { class: 'x', title: T('common.remove'), onclick: () => act(() => removeUnit(u.id)) }, '×')))));
+        el('div', { class: 'row' },
+          el('button', { onclick: () => act(() => addLines(g.id, ta.value)) }, T(isTeams() ? 'setup.addTeams' : 'setup.addPlayers')),
+          el('button', { class: 'link', title: T('paste.importTitle'), onclick: () => file.click() }, T('paste.import')), file),
+        errRows.length ? el('div', { class: 'paste-errs' }, errRows) : null),
+      units.length ? el('div', { class: 'check-tools' },
+        el('input', { type: 'search', class: 'check-search', placeholder: T('setup.search'), value: q,
+          oninput: e => {
+            searches[g.id] = e.target.value;
+            rows.forEach(r => { r.style.display = matches(r._unit, e.target.value) ? '' : 'none'; });
+          } }),
+        el('button', { disabled: !counts.pending, onclick: () => act(() => markAllPresent(g.id)) }, T('setup.markAll')),
+        el('span', { class: 'muted check-counts' },
+          STATUSES.filter(x => counts[x]).map(x => `${T('status.' + x)} ${counts[x]}`).join(' · '))) : null,
+      units.length ? list : null);
   }
 
   function allocationTable(locked) {
     const alloc = locked ? null : allocation();
     const rows = state.groups.map(g => {
-      const size = S.unitsForGroup(state, g.id).length;
+      const size = S.scheduledUnits(state, g.id).length;
       const courts = locked ? (state.courtAssignment[g.id] || []) : (alloc.assignment[g.id] || []);
       const load = S.groupLoad(size, courts.length, state.mode);
       return el('tr', {},
@@ -401,6 +479,7 @@
     } else {
       wrap.append(section(T('setup.start'),
         errs.length ? el('ul', { class: 'errors' }, errs.map(e => el('li', {}, e))) : null,
+        notCheckedIn() ? el('div', { class: 'notice warn' }, T('start.notChecked', { n: notCheckedIn(), unit: unitWord() })) : null,
         el('div', { class: 'row' },
           el('button', { class: 'primary', disabled: errs.length > 0, onclick: () => act(start) }, T('setup.startBtn')),
           el('button', { onclick: () => act(loadDemo) }, T('setup.loadDemo')))));

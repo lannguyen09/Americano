@@ -100,11 +100,32 @@ textarea { width: 100%; resize: vertical; }
 .group-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .group-name { font-weight: 600; flex: 1; min-width: 0; }
 .paste { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 10px; }
-.roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; max-height: 320px; overflow: auto; }
-.roster-item { display: flex; align-items: center; gap: 2px; }
-.roster-item input { flex: 1; min-width: 0; padding: 3px 6px; font-size: 14px; }
-.roster-item .x { border: 0; background: none; color: var(--muted); padding: 2px 6px; }
-.roster-item .x:hover { color: var(--danger); }
+.paste textarea { width: 100%; box-sizing: border-box; }
+.paste-errs { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.paste-err { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px;
+  background: var(--danger-bg); color: var(--danger-text); border-left: 4px solid var(--danger); }
+.paste-line { font-weight: 600; white-space: nowrap; }
+.paste-why { flex: 1; font-size: 14px; }
+.paste-err button { padding: 2px 10px; font-size: 14px; white-space: nowrap; }
+.check-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.check-search { flex: 1; min-width: 120px; }
+.check-counts { font-size: 14px; }
+.checklist { display: grid; grid-template-columns: minmax(90px, 1fr) auto auto; gap: 3px 6px; align-items: center; max-height: 420px; overflow: auto; }
+.checklist.teams { grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) auto auto; }
+.check-head, .check-row { display: contents; }
+.check-head span { font-size: 13px; font-weight: 600; color: var(--muted); }
+.check-name { min-width: 0; padding: 3px 6px; font-size: 14px; white-space: nowrap; text-overflow: ellipsis; }
+.check-row.st-absent .check-name, .check-row.absent .check-name { color: var(--muted); text-decoration: line-through; }
+.check-row.st-pending .check-name { color: var(--muted); }
+.check-row .x { border: 0; background: none; color: var(--muted); padding: 2px 6px; }
+.check-row .x:hover { color: var(--danger); }
+.st-chips { display: flex; flex-wrap: wrap; gap: 2px; }
+.st-chip { padding: 2px 7px; font-size: 12px; border-radius: 12px; white-space: nowrap; color: var(--muted); }
+.st-chip.on.st-pending { background: var(--line); color: var(--text); }
+.st-chip.on.st-present { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-text); }
+.st-chip.on.st-late { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-line); }
+.st-chip.on.st-absent { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger); }
+.notice.warn { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
 .court-toggles { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
 .court-btn { width: 44px; padding: 7px 0; }
 .court-btn.on { background: var(--brand); border-color: var(--brand); color: var(--brand-contrast); }
@@ -190,7 +211,6 @@ table.rank td.strong { font-weight: 700; }
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
   background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
 }
-.roster-item.absent input { text-decoration: line-through; color: var(--muted); }
 .round-bar .back { font-size: 16px; }
 .courts.draft .court { border-style: dashed; }
 .edit-tools { margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -278,10 +298,13 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
       'err.roundsRange': 'Number of rounds must be between {min} and 50.',
       'err.importJson': 'Import failed: not a valid JSON file.',
       'err.importFormat': 'Import failed: this is not a Padel Americano export.',
-      'paste.whyTeams': 'duplicate name or not in "Name1 / Name2" format',
-      'paste.whyPlayers': 'duplicate name',
-      'paste.skipped': 'Added {added}. Skipped {skipped} ({why}); they are left in the box.',
-      'paste.added': 'Added {n} {unit}.',
+      'paste.format': 'Not two names. Use Name1 / Name2 (or & + Tab).',
+      'paste.sameTwice': 'Same name twice in one team.',
+      'paste.taken': '"{name}" is already in the tournament.',
+      'paste.dupInList': '"{name}" appears earlier in this list.',
+      'paste.addAs': 'Add as {name}',
+      'paste.import': 'Import CSV…',
+      'paste.importTitle': 'CSV or Excel export with columns: name, level (optional)',
       'info.restarted': 'Tournament restarted. Check the setup and press Start.',
       'info.demoLoaded': 'Demo loaded: 21 Advanced + 48 Beginner, 9 courts, 6 rounds. Press Start.',
       'info.replaced': '{new} replaces {old} from round {n} on.',
@@ -326,7 +349,17 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
       'setup.addTeams': 'Add teams',
       'setup.addPlayers': 'Add players',
       'setup.pasteTeams': 'One team per line: Name1 / Name2',
-      'setup.pastePlayers': 'One name per line',
+      'setup.pastePlayers': 'One name per line (paste from Excel works)',
+      'setup.player1': 'Player 1',
+      'setup.player2': 'Player 2',
+      'setup.status': 'Status',
+      'setup.search': 'Search…',
+      'setup.markAll': 'Mark all present',
+      'status.pending': 'Not checked in',
+      'status.present': 'Present',
+      'status.late': 'Late',
+      'status.absent': 'Absent',
+      'start.notChecked': '{n} {unit} not checked in: they are excluded from the schedule.',
       'setup.absentFrom': 'Absent from round {n}',
       'setup.courts': '3. Courts',
       'setup.clubCourts': 'Courts at the club ',
@@ -825,17 +858,26 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   }
 
   // ---- State helpers ----
+  // Check-in status: only Present and Late are scheduled ('pending' = not checked in, 'absent').
+  // No status (older saved data) counts as Present. Late is scheduled like Present (for now).
+  const isScheduled = p => !!p && (p.status == null || p.status === 'present' || p.status === 'late');
+
+  // Units of a group. scheduled: false → excluded from every draft round (absentFromRound 0).
   function unitsForGroup(state, groupId) {
     if (state.mode === 'teams') {
       const byId = new Map(state.players.map(p => [p.id, p]));
       return state.teams.filter(t => t.groupId === groupId).map(t => {
+        const scheduled = t.playerIds.every(id => isScheduled(byId.get(id)));
         const abs = t.playerIds.map(id => byId.get(id) && byId.get(id).absentFromRound).filter(x => x != null);
-        return { id: t.id, members: t.playerIds.slice(), absentFromRound: abs.length ? Math.min(...abs) : null };
+        return { id: t.id, members: t.playerIds.slice(), scheduled,
+          absentFromRound: !scheduled ? 0 : abs.length ? Math.min(...abs) : null };
       });
     }
     return state.players.filter(p => p.groupId === groupId)
-      .map(p => ({ id: p.id, members: [p.id], absentFromRound: p.absentFromRound }));
+      .map(p => ({ id: p.id, members: [p.id], scheduled: isScheduled(p),
+        absentFromRound: isScheduled(p) ? p.absentFromRound : 0 }));
   }
+  const scheduledUnits = (state, groupId) => unitsForGroup(state, groupId).filter(u => u.scheduled);
 
   function confirmedPrefix(rounds) {
     let last = -1;
@@ -978,12 +1020,120 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   const api = {
     W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
     makeRng, unitsPerCourt, allocateCourts, groupLoad,
-    scheduleRounds, scheduleState, unitsForGroup, confirmedPrefix,
+    scheduleRounds, scheduleState, unitsForGroup, scheduledUnits, isScheduled, confirmedPrefix,
     editableIndex, swapPlayers, confirmRound, restartTournament,
     fairnessReport, formatFairness,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Scheduler = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>/* Padel Americano — name parsing for Setup (pure, no DOM). */
+(function (root) {
+  'use strict';
+
+  const norm = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  // Duplicate key: case- and space-insensitive.
+  const key = s => String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase();
+
+  // Name particles that stay lowercase when not the first word (van der Berg, de Vries).
+  const PARTICLES = new Set(['van', 'von', 'der', 'den', 'de', 'del', 'della', 'di', 'da', 'du', 'het', 'te', 'ter', 'ten', "'t", 'la', 'le', 'vd']);
+  // Capitalise words typed fully in lowercase; mixed case (McDonald, DJ) is left as typed.
+  function capitalise(name) {
+    return norm(name).split(' ').map((w, i) => {
+      if (!w || w !== w.toLowerCase()) return w;
+      if (i > 0 && PARTICLES.has(w)) return w;
+      return w.replace(/(^|[-'])(\p{L})/gu, (m, sep, c) => sep + c.toUpperCase());
+    }).join(' ');
+  }
+
+  // Teams line: separators / & + or Tab (spaces optional). Comma is NOT a separator.
+  function splitTeam(line) {
+    return String(line).split(/[\/&+\t]/).map(capitalise);
+  }
+
+  // "Jan" taken → "Jan (2)", "Jan (3)", ...
+  function uniqueName(name, takenKeys) {
+    const base = norm(name).replace(/\s*\(\d+\)$/, '');
+    for (let n = 2; ; n++) {
+      const cand = `${base} (${n})`;
+      if (!takenKeys.has(key(cand))) return cand;
+    }
+  }
+
+  // Players mode, one cell per line; Excel rows with a Tab: name<Tab>level.
+  function splitPlayer(line) {
+    const cells = String(line).split('\t').map(norm);
+    return { names: [capitalise(cells[0])], level: cells[1] || null };
+  }
+
+  const isHeader = line => /^\s*name\s*([\t,;].*)?$/i.test(line);
+
+  // Parse pasted text into rows.
+  // opts: {teams: bool, taken: [existing names]}
+  // row: {raw, line (display), names, level, ok, reason: null|'format'|'sameTwice'|'taken'|'dupInList', suggestion: [names]|null}
+  // Duplicates within the paste are reported against earlier lines; suggestions are unique against everything.
+  function parseLines(text, opts) {
+    const teams = !!(opts && opts.teams);
+    const taken = new Set(((opts && opts.taken) || []).map(key));
+    const inList = new Set();
+    const all = new Set(taken);
+    const rows = [];
+    for (const raw of String(text || '').split(/\r?\n/)) {
+      if (!norm(raw) || isHeader(raw)) continue;
+      const line = norm(raw.replace(/\t/g, teams ? ' / ' : ' '));
+      const parsed = teams ? { names: splitTeam(raw), level: null } : splitPlayer(raw);
+      const names = parsed.names;
+      const row = { raw: raw.replace(/^\s+|\s+$/g, ''), line, names, level: parsed.level, ok: true, reason: null, suggestion: null };
+      if (teams && (names.length !== 2 || !names[0] || !names[1])) {
+        row.ok = false; row.reason = 'format';
+      } else if (teams && key(names[0]) === key(names[1])) {
+        row.ok = false; row.reason = 'sameTwice';
+      } else {
+        const dup = names.find(n => taken.has(key(n)) || inList.has(key(n)));
+        if (dup) {
+          row.ok = false;
+          row.reason = taken.has(key(dup)) ? 'taken' : 'dupInList';
+          row.dup = dup;
+          const used = new Set(all);
+          row.suggestion = names.map(n => {
+            if (!taken.has(key(n)) && !inList.has(key(n))) return n;
+            const s = uniqueName(n, used);
+            used.add(key(s));
+            return s;
+          });
+        }
+      }
+      if (row.ok) names.forEach(n => { inList.add(key(n)); all.add(key(n)); });
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  // CSV / Excel import: columns name[, level]. Delimiter: Tab, ';' or ','. Header row optional.
+  // Returns text lines for parseLines (players: "name<Tab>level"; teams: "name1<Tab>name2" or the name cell).
+  function importToText(text, teams) {
+    const lines = String(text || '').split(/\r?\n/).filter(l => norm(l));
+    if (!lines.length) return '';
+    const first = lines[0];
+    const delim = first.includes('\t') ? '\t' : first.includes(';') ? ';' : ',';
+    const unq = c => norm(c).replace(/^"(.*)"$/, '$1').replace(/""/g, '"');
+    const rows = lines.map(l => l.split(delim).map(unq));
+    let nameCol = 0, levelCol = 1;
+    const head = rows[0].map(c => c.toLowerCase());
+    const hasHeader = head.includes('name');
+    if (hasHeader) {
+      nameCol = head.indexOf('name');
+      levelCol = head.indexOf('level');
+      rows.shift();
+    }
+    if (teams) return rows.map(r => (hasHeader ? r[nameCol] || '' : r.slice(0, 2).filter(Boolean).join('\t'))).join('\n');
+    return rows.map(r => [r[nameCol] || '', levelCol >= 0 ? r[levelCol] || '' : ''].join('\t').replace(/\t$/, '')).join('\n');
+  }
+
+  const api = { norm, key, capitalise, splitTeam, uniqueName, parseLines, importToText };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Names = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 </script>
 <script>/* Padel Americano ranking — pure function, no DOM. */
@@ -1116,6 +1266,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 
   // ---------- Helpers ----------
   const S = window.Scheduler;
+  const N = window.Names;
   const R = window.Ranking;
   // Default group colours come from the CSS variables --group-1..4 (set by the theme).
   const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -1137,6 +1288,9 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 
   let notice = null;          // {kind: 'error'|'info', text}
   const pasteDrafts = {};     // textarea content per group id (not persisted)
+  const pasteErrors = {};     // rejected rows per group id: [{line, names, reason, dup, suggestion}] (not persisted)
+  const searches = {};        // checklist search text per group id (not persisted)
+  const STATUSES = ['pending', 'present', 'late', 'absent'];
   let editing = false;        // "Edit setup" unlocked while the tournament runs (not persisted)
   let selected = null;        // player id selected for a swap in the current round (not persisted)
 
@@ -1150,8 +1304,8 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   function setNotice(kind, text) { notice = { kind, text }; }
 
   function nameTaken(name, exceptId) {
-    const k = norm(name).toLowerCase();
-    return state.players.some(p => p.id !== exceptId && p.name.toLowerCase() === k);
+    const k = N.key(name);
+    return state.players.some(p => p.id !== exceptId && N.key(p.name) === k);
   }
   function inConfirmedRound(pid) {
     return state.rounds.some(r => r.status === 'confirmed' &&
@@ -1179,9 +1333,12 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   }
   function allocation() {
     return S.allocateCourts(state.groups.map(g => ({
-      id: g.id, name: g.name, size: S.unitsForGroup(state, g.id).length, override: g.courtsOverride,
+      id: g.id, name: g.name, size: S.scheduledUnits(state, g.id).length, override: g.courtsOverride,
     })), state.courts, state.mode);
   }
+  // Units not checked in (status 'pending'): excluded from the schedule.
+  const notCheckedIn = () => state.groups.reduce((n, g) =>
+    n + S.unitsForGroup(state, g.id).filter(u => !u.scheduled && unitStatus(u) === 'pending').length, 0);
   function startErrors() {
     const errs = [];
     if (!state.groups.length) errs.push(T('err.noGroup'));
@@ -1222,39 +1379,72 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     }
     state.groups.find(g => g.id === gid).name = name;
   }
-  function addPlayer(gid, name) {
-    const p = { id: newId('p'), name, groupId: gid, absentFromRound: null };
+  function addPlayer(gid, name, level) {
+    const p = { id: newId('p'), name, groupId: gid, absentFromRound: null, status: 'pending' };
+    if (level) p.level = isNaN(+level) ? level : +level;
     state.players.push(p);
     return p;
   }
+  function addUnit(gid, names, level) {
+    if (isTeams()) {
+      const a = addPlayer(gid, names[0]), b = addPlayer(gid, names[1]);
+      state.teams.push({ id: newId('t'), groupId: gid, playerIds: [a.id, b.id] });
+    } else addPlayer(gid, names[0], level);
+  }
+  // Valid lines are added; rejected lines stay in the box and are listed per line with the reason.
   function addLines(gid, text) {
-    const rejected = [];
-    let added = 0;
-    for (const line of text.split('\n').map(norm).filter(Boolean)) {
-      if (isTeams()) {
-        const parts = line.split('/').map(norm);
-        if (parts.length !== 2 || !parts[0] || !parts[1] ||
-            parts[0].toLowerCase() === parts[1].toLowerCase() || nameTaken(parts[0]) || nameTaken(parts[1])) {
-          rejected.push(line); continue;
-        }
-        const a = addPlayer(gid, parts[0]), b = addPlayer(gid, parts[1]);
-        state.teams.push({ id: newId('t'), groupId: gid, playerIds: [a.id, b.id] });
-      } else {
-        if (nameTaken(line)) { rejected.push(line); continue; }
-        addPlayer(gid, line);
-      }
-      added++;
+    const rows = N.parseLines(text, { teams: isTeams(), taken: state.players.map(p => p.name) });
+    const bad = rows.filter(r => !r.ok);
+    rows.filter(r => r.ok).forEach(r => addUnit(gid, r.names, r.level));
+    pasteDrafts[gid] = bad.map(r => r.raw).join('\n');
+    pasteErrors[gid] = bad;
+    if (rows.length > bad.length) regenerate();
+  }
+  // "Add as Jan (2)": add a rejected duplicate row under its suggested name.
+  function addAs(gid, i) {
+    const row = (pasteErrors[gid] || [])[i];
+    if (!row || !row.suggestion) return;
+    if (row.suggestion.some(n => nameTaken(n))) {
+      // Suggestion got taken meanwhile: recompute from current names.
+      const again = N.parseLines(row.raw, { teams: isTeams(), taken: state.players.map(p => p.name) })[0];
+      if (!again || !again.suggestion) return;
+      row.suggestion = again.suggestion;
     }
-    pasteDrafts[gid] = rejected.join('\n');
-    if (rejected.length) {
-      const why = T(isTeams() ? 'paste.whyTeams' : 'paste.whyPlayers');
-      setNotice('error', T('paste.skipped', { added, skipped: rejected.length, why }));
-    } else if (added) setNotice('info', T('paste.added', { n: added, unit: unitWord() }));
-    if (added) regenerate();
+    addUnit(gid, row.suggestion, row.level);
+    pasteErrors[gid] = pasteErrors[gid].filter(r => r !== row);
+    const lines = (pasteDrafts[gid] || '').split('\n');
+    const at = lines.indexOf(row.raw);
+    if (at >= 0) lines.splice(at, 1);
+    pasteDrafts[gid] = lines.join('\n');
+    regenerate();
+  }
+  function importFile(gid, file) {
+    const reader = new FileReader();
+    reader.onload = () => act(() => {
+      const text = N.importToText(String(reader.result), isTeams());
+      addLines(gid, [pasteDrafts[gid] || '', text].filter(Boolean).join('\n'));
+    });
+    reader.readAsText(file);
+  }
+  // Check-in: status per player; in teams mode a team's chips set both players.
+  function unitStatus(u) {
+    const pm = playerMap();
+    const st = u.members.map(id => pm.get(id).status || 'present');
+    return st.every(x => x === st[0]) ? st[0] : 'pending';
+  }
+  function setStatus(memberIds, status) {
+    const ids = new Set(memberIds);
+    state.players.forEach(p => { if (ids.has(p.id)) p.status = status; });
+    regenerate();
+  }
+  function markAllPresent(gid) {
+    state.players.forEach(p => { if (p.groupId === gid && (p.status || 'present') === 'pending') p.status = 'present'; });
+    regenerate();
   }
   function renamePlayer(pid, name) {
     name = norm(name);
     if (!name) return setNotice('error', T('err.nameEmpty'));
+    name = N.capitalise(name);
     if (nameTaken(name, pid)) return setNotice('error', T('err.nameTaken', { name }));
     playerMap().get(pid).name = name;
   }
@@ -1323,7 +1513,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
       { id: newId('g'), name: T('demo.advanced'), color: COLORS[0], courtsOverride: null },
       { id: newId('g'), name: T('demo.beginner'), color: COLORS[1], courtsOverride: null },
     ];
-    DEMO_NAMES.forEach((n, i) => addPlayer(state.groups[i < 21 ? 0 : 1].id, n));
+    DEMO_NAMES.forEach((n, i) => { addPlayer(state.groups[i < 21 ? 0 : 1].id, n).status = 'present'; });
     state.clubCourts = 9;
     state.courts = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     state.numRounds = 6;
@@ -1334,7 +1524,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   const views = {};
   const section = (title, ...children) => el('section', { class: 'card' }, el('h2', {}, title), ...children);
 
-  // locked: players read-only; groupLocked: group cannot be removed.
+  // locked: players read-only; groupLocked: group cannot be removed. Check-in chips stay usable.
   function groupCard(g, locked, groupLocked) {
     const pm = playerMap();
     const units = S.unitsForGroup(state, g.id);
@@ -1344,6 +1534,38 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
       oninput: e => { pasteDrafts[g.id] = e.target.value; },
     });
     ta.value = pasteDrafts[g.id] || '';
+    const file = el('input', { type: 'file', accept: '.csv,.tsv,.txt,text/csv,text/plain', hidden: true,
+      onchange: e => { if (e.target.files[0]) importFile(g.id, e.target.files[0]); } });
+    const errRows = (pasteErrors[g.id] || []).map((r, i) => el('div', { class: 'paste-err' },
+      el('span', { class: 'paste-line' }, r.line),
+      el('span', { class: 'paste-why' }, T('paste.' + r.reason, { name: r.dup || '' })),
+      r.suggestion ? el('button', { onclick: () => act(() => addAs(g.id, i)) },
+        T('paste.addAs', { name: r.suggestion.join(' / ') })) : null));
+
+    const counts = {};
+    units.forEach(u => { const st = unitStatus(u); counts[st] = (counts[st] || 0) + 1; });
+    const q = searches[g.id] || '';
+    const matches = (u, text) => !text || u.members.some(id => N.key(pm.get(id).name).includes(N.key(text)));
+    const rows = units.map(u => {
+      const st = unitStatus(u);
+      const from = u.members.map(id => pm.get(id).absentFromRound).filter(x => x != null);
+      const row = el('div', { class: 'check-row st-' + st + (from.length ? ' absent' : ''), style: matches(u, q) ? null : 'display:none',
+        title: from.length ? T('setup.absentFrom', { n: Math.min(...from) + 1 }) : null },
+        u.members.map(pid => el('input', { class: 'check-name', value: pm.get(pid).name, disabled: locked,
+          onchange: e => act(() => renamePlayer(pid, e.target.value)) })),
+        el('div', { class: 'st-chips' }, STATUSES.map(x => el('button', {
+          class: 'st-chip st-' + x + (st === x ? ' on' : ''),
+          onclick: () => act(() => setStatus(u.members, x)),
+        }, T('status.' + x)))),
+        locked ? el('span') : el('button', { class: 'x', title: T('common.remove'), onclick: () => act(() => removeUnit(u.id)) }, '×'));
+      row._unit = u;
+      return row;
+    });
+    const list = el('div', { class: 'checklist' + (isTeams() ? ' teams' : '') },
+      isTeams() ? el('div', { class: 'check-head' },
+        el('span', {}, T('setup.player1')), el('span', {}, T('setup.player2')), el('span', {}, T('setup.status')), el('span')) : null,
+      rows);
+
     return el('div', { class: 'group', style: gStyle(g.color) },
       el('div', { class: 'group-head' },
         el('span', { class: 'swatch' }),
@@ -1351,20 +1573,26 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
         el('span', { class: 'muted' }, `${units.length} ${unitWord()}`),
         groupLocked ? null : el('button', { class: 'link danger', onclick: () => act(() => removeGroup(g.id)) }, T('setup.removeGroup'))),
       locked ? null : el('div', { class: 'paste' }, ta,
-        el('button', { onclick: () => act(() => addLines(g.id, ta.value)) }, T(isTeams() ? 'setup.addTeams' : 'setup.addPlayers'))),
-      el('div', { class: 'roster' }, units.map(u => el('div', { class: 'roster-item' + (u.absentFromRound != null ? ' absent' : ''),
-        title: u.absentFromRound != null ? T('setup.absentFrom', { n: u.absentFromRound + 1 }) : null },
-        u.members.map((pid, i) => [
-          i ? el('span', { class: 'muted' }, '/') : null,
-          el('input', { value: pm.get(pid).name, disabled: locked, onchange: e => act(() => renamePlayer(pid, e.target.value)) }),
-        ]),
-        locked ? null : el('button', { class: 'x', title: T('common.remove'), onclick: () => act(() => removeUnit(u.id)) }, '×')))));
+        el('div', { class: 'row' },
+          el('button', { onclick: () => act(() => addLines(g.id, ta.value)) }, T(isTeams() ? 'setup.addTeams' : 'setup.addPlayers')),
+          el('button', { class: 'link', title: T('paste.importTitle'), onclick: () => file.click() }, T('paste.import')), file),
+        errRows.length ? el('div', { class: 'paste-errs' }, errRows) : null),
+      units.length ? el('div', { class: 'check-tools' },
+        el('input', { type: 'search', class: 'check-search', placeholder: T('setup.search'), value: q,
+          oninput: e => {
+            searches[g.id] = e.target.value;
+            rows.forEach(r => { r.style.display = matches(r._unit, e.target.value) ? '' : 'none'; });
+          } }),
+        el('button', { disabled: !counts.pending, onclick: () => act(() => markAllPresent(g.id)) }, T('setup.markAll')),
+        el('span', { class: 'muted check-counts' },
+          STATUSES.filter(x => counts[x]).map(x => `${T('status.' + x)} ${counts[x]}`).join(' · '))) : null,
+      units.length ? list : null);
   }
 
   function allocationTable(locked) {
     const alloc = locked ? null : allocation();
     const rows = state.groups.map(g => {
-      const size = S.unitsForGroup(state, g.id).length;
+      const size = S.scheduledUnits(state, g.id).length;
       const courts = locked ? (state.courtAssignment[g.id] || []) : (alloc.assignment[g.id] || []);
       const load = S.groupLoad(size, courts.length, state.mode);
       return el('tr', {},
@@ -1452,6 +1680,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     } else {
       wrap.append(section(T('setup.start'),
         errs.length ? el('ul', { class: 'errors' }, errs.map(e => el('li', {}, e))) : null,
+        notCheckedIn() ? el('div', { class: 'notice warn' }, T('start.notChecked', { n: notCheckedIn(), unit: unitWord() })) : null,
         el('div', { class: 'row' },
           el('button', { class: 'primary', disabled: errs.length > 0, onclick: () => act(start) }, T('setup.startBtn')),
           el('button', { onclick: () => act(loadDemo) }, T('setup.loadDemo')))));

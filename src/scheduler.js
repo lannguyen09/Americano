@@ -372,17 +372,26 @@
   }
 
   // ---- State helpers ----
+  // Check-in status: only Present and Late are scheduled ('pending' = not checked in, 'absent').
+  // No status (older saved data) counts as Present. Late is scheduled like Present (for now).
+  const isScheduled = p => !!p && (p.status == null || p.status === 'present' || p.status === 'late');
+
+  // Units of a group. scheduled: false → excluded from every draft round (absentFromRound 0).
   function unitsForGroup(state, groupId) {
     if (state.mode === 'teams') {
       const byId = new Map(state.players.map(p => [p.id, p]));
       return state.teams.filter(t => t.groupId === groupId).map(t => {
+        const scheduled = t.playerIds.every(id => isScheduled(byId.get(id)));
         const abs = t.playerIds.map(id => byId.get(id) && byId.get(id).absentFromRound).filter(x => x != null);
-        return { id: t.id, members: t.playerIds.slice(), absentFromRound: abs.length ? Math.min(...abs) : null };
+        return { id: t.id, members: t.playerIds.slice(), scheduled,
+          absentFromRound: !scheduled ? 0 : abs.length ? Math.min(...abs) : null };
       });
     }
     return state.players.filter(p => p.groupId === groupId)
-      .map(p => ({ id: p.id, members: [p.id], absentFromRound: p.absentFromRound }));
+      .map(p => ({ id: p.id, members: [p.id], scheduled: isScheduled(p),
+        absentFromRound: isScheduled(p) ? p.absentFromRound : 0 }));
   }
+  const scheduledUnits = (state, groupId) => unitsForGroup(state, groupId).filter(u => u.scheduled);
 
   function confirmedPrefix(rounds) {
     let last = -1;
@@ -525,7 +534,7 @@
   const api = {
     W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
     makeRng, unitsPerCourt, allocateCourts, groupLoad,
-    scheduleRounds, scheduleState, unitsForGroup, confirmedPrefix,
+    scheduleRounds, scheduleState, unitsForGroup, scheduledUnits, isScheduled, confirmedPrefix,
     editableIndex, swapPlayers, confirmRound, restartTournament,
     fairnessReport, formatFairness,
   };

@@ -35,6 +35,7 @@ const parts = {
   '/*__THEME__*/': safeJs(`window.THEME = ${JSON.stringify(themeJs)};`),
   '/*__STRINGS__*/': safeJs(read('strings.js')),
   '/*__SCHEDULER__*/': safeJs(read('scheduler.js')),
+  '/*__NAMES__*/': safeJs(read('names.js')),
   '/*__RANKING__*/': safeJs(read('ranking.js')),
   '/*__APP__*/': safeJs(read('app.js')),
 };
