@@ -669,9 +669,10 @@
       if (picked.length) act(() => picked.forEach(([ids, v]) => setStatus(ids, v)));
       doConfirm(idx);
     } }, T('confirm.btn'));
-    dlg.append(el('h3', {}, T('confirm.round', { n: idx + 1 })),
+    // el() skips null children (native append() would print "null").
+    dlg.append(el('div', {}, el('h3', {}, T('confirm.round', { n: idx + 1 })),
       choices.length ? el('p', { class: 'muted' }, T('late.title', { n: idx + 1 })) : null, choices.map(c => c.row),
-      el('div', { class: 'row' }, ok, el('button', { onclick: close }, T('common.cancel'))));
+      el('div', { class: 'row' }, ok, el('button', { onclick: close }, T('common.cancel')))));
     dlg.addEventListener('cancel', () => dlg.remove());
     document.body.append(dlg);
     dlg.showModal();

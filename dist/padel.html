@@ -515,7 +515,7 @@ button.find-item { font: inherit; color: inherit; text-align: left; cursor: poin
       'rounds.resting': 'Resting',
       'rounds.nobodyRests': 'Nobody rests this round.',
       'rounds.unlock': 'Unlock round',
-      'confirm.round': 'Confirm Round {n}? The lineup will be locked.',
+      'confirm.round': 'Confirm Round {n}? The lineup will be locked. {n}',
       'confirm.unlock': 'Unlock round {n}? Its lineup becomes editable again (scores are kept) and all later suggested rounds are regenerated.',
       'confirm.btn': 'Confirm',
       'rank.rounds': 'Rounds',
@@ -2151,9 +2151,10 @@ button.find-item { font: inherit; color: inherit; text-align: left; cursor: poin
       if (picked.length) act(() => picked.forEach(([ids, v]) => setStatus(ids, v)));
       doConfirm(idx);
     } }, T('confirm.btn'));
-    dlg.append(el('h3', {}, T('confirm.round', { n: idx + 1 })),
+    // el() skips null children (native append() would print "null").
+    dlg.append(el('div', {}, el('h3', {}, T('confirm.round', { n: idx + 1 })),
       choices.length ? el('p', { class: 'muted' }, T('late.title', { n: idx + 1 })) : null, choices.map(c => c.row),
-      el('div', { class: 'row' }, ok, el('button', { onclick: close }, T('common.cancel'))));
+      el('div', { class: 'row' }, ok, el('button', { onclick: close }, T('common.cancel')))));
     dlg.addEventListener('cancel', () => dlg.remove());
     document.body.append(dlg);
     dlg.showModal();

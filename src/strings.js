@@ -173,7 +173,7 @@
       'rounds.resting': 'Resting',
       'rounds.nobodyRests': 'Nobody rests this round.',
       'rounds.unlock': 'Unlock round',
-      'confirm.round': 'Confirm Round {n}? The lineup will be locked.',
+      'confirm.round': 'Confirm Round {n}? The lineup will be locked. {n}',
       'confirm.unlock': 'Unlock round {n}? Its lineup becomes editable again (scores are kept) and all later suggested rounds are regenerated.',
       'confirm.btn': 'Confirm',
       'rank.rounds': 'Rounds',
