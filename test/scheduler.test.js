@@ -315,6 +315,202 @@ test('restart keeps players and settings, deletes rounds and scores', () => {
   assert.strictEqual(st.rounds.length, 4, 'input not mutated');
 });
 
+// ---------- Late players (SPEC_v2 §D) ----------
+// n units in group 'A'; the last `late` units are Late (teams: first member only).
+function lateState({ n, late, courts, numRounds = 6, mode = 'americano' }) {
+  const st = makeState({ groups: [['A', n]], mode, courts, numRounds, seed: 11 });
+  const units = S.unitsForGroup(st, 'g0');
+  const lateUnits = units.slice(n - late);
+  for (const u of lateUnits) st.players.find(p => p.id === u.members[0]).status = 'late';
+  st.started = true;
+  st.rounds = S.scheduleState(st);
+  return { st, lateIds: lateUnits.map(u => u.members) };
+}
+const onCourt = r => r.matches.flatMap(m => m.teamA.concat(m.teamB));
+// Every scheduled player exactly once per round in matches / resting / late; others never.
+function checkLateValidity(st, rounds) {
+  rounds.forEach((r, ri) => {
+    const seen = new Map();
+    for (const id of onCourt(r).concat(r.resting, r.late || [])) seen.set(id, (seen.get(id) || 0) + 1);
+    const courts = r.matches.map(m => m.court);
+    assert.strictEqual(new Set(courts).size, courts.length, `round ${ri + 1}: court twice`);
+    for (const p of st.players) {
+      const team = st.mode === 'teams' ? st.teams.find(t => t.playerIds.includes(p.id)) : null;
+      const ok = (team ? team.playerIds : [p.id]).every(id => S.isScheduled(st.players.find(x => x.id === id)));
+      assert.strictEqual(seen.get(p.id) || 0, ok ? 1 : 0, `round ${ri + 1}: player ${p.id}`);
+    }
+  });
+}
+// App flow: resolve a late unit in the current round, set statuses, regenerate later drafts.
+function resolve(st, idx, ids, outcome) {
+  st.rounds = st.rounds.slice();
+  st.rounds[idx] = S.resolveLate(st.rounds[idx], ids, outcome);
+  st.players.filter(p => ids.includes(p.id)).forEach(p => { p.status = outcome; });
+  st.rounds = S.scheduleState(st, null, idx + 1);
+}
+// App flow: confirm round idx; undecided late players get `outcome` (dialog default: absent).
+function confirmWithLate(st, idx, outcome = 'absent') {
+  const undecided = S.undecidedLate(st.rounds[idx]);
+  const units = S.unitsForGroup(st, 'g0').filter(u => u.members.some(id => undecided.includes(id)));
+  for (const u of units) resolve(st, idx, u.members, outcome);
+  st.rounds = S.confirmRound(st, idx).rounds;
+}
+
+test('late: 1 late player (15 present + 1 late, 4 courts) gets a pending court with the odd ones', () => {
+  const { st, lateIds } = lateState({ n: 16, late: 1, courts: 4 });
+  const [r0] = st.rounds;
+  const pend = r0.matches.filter(m => m.pending);
+  assert.strictEqual(r0.matches.length, 4);
+  assert.strictEqual(pend.length, 1);
+  assert.deepStrictEqual(pend[0].late, lateIds[0]);
+  assert.strictEqual(pend[0].court, 4, 'pending court is the extra court');
+  assert.deepStrictEqual(r0.resting, [], 'the would-be resters play on the pending court');
+  assert.ok(r0.matches.filter(m => !m.pending).every(m => !onCourt({ matches: [m] }).includes(lateIds[0][0])));
+  for (const r of st.rounds.slice(1)) {
+    assert.ok(!r.matches.some(m => m.pending), 'pending only in the current round');
+    assert.deepStrictEqual(r.late, lateIds[0], 'later rounds: late planned as waiting');
+    assert.strictEqual(r.matches.length, 3);
+  }
+  checkLateValidity(st, st.rounds);
+});
+
+test('late: no pending court when it adds no court (capped courts, or not enough late)', () => {
+  for (const [n, courts] of [[16, 3], [14, 4]]) {
+    const { st, lateIds } = lateState({ n, late: 1, courts });
+    const [r0] = st.rounds;
+    assert.ok(!r0.matches.some(m => m.pending), `${n}/${courts}: no pending court`);
+    assert.deepStrictEqual(r0.late, lateIds[0]);
+    assert.ok(!onCourt(r0).includes(lateIds[0][0]) && !r0.resting.includes(lateIds[0][0]));
+    checkLateValidity(st, st.rounds);
+  }
+});
+
+test('late: 2 late players share the SAME pending court; a 3rd waits in round.late', () => {
+  const { st, lateIds } = lateState({ n: 17, late: 3, courts: 5 }); // 14 present: 3 courts + 2 odd
+  const [r0] = st.rounds;
+  const pend = r0.matches.filter(m => m.pending);
+  assert.strictEqual(pend.length, 1);
+  assert.strictEqual(pend[0].late.length, 2);
+  assert.deepStrictEqual(r0.late, [lateIds[2][0]]);
+  checkLateValidity(st, st.rounds);
+});
+
+test('late → present mid-round: pending court becomes a normal match, later rounds include the player', () => {
+  const { st, lateIds } = lateState({ n: 16, late: 1, courts: 4 });
+  const before = st.rounds[0];
+  resolve(st, 0, lateIds[0], 'present');
+  const r0 = st.rounds[0];
+  assert.ok(!r0.matches.some(m => m.pending || m.late));
+  assert.deepStrictEqual(r0.matches.map(m => [m.court, m.teamA, m.teamB]), before.matches.map(m => [m.court, m.teamA, m.teamB]));
+  for (const r of st.rounds.slice(1)) {
+    assert.ok(!r.late);
+    assert.ok(onCourt(r).concat(r.resting).includes(lateIds[0][0]));
+  }
+  checkLateValidity(st, st.rounds);
+});
+
+test('late → absent: court lapses, its present players rest (with credit), late player gets none', () => {
+  const { st, lateIds } = lateState({ n: 16, late: 1, courts: 4 });
+  const pend = st.rounds[0].matches.find(m => m.pending);
+  const fill = onCourt({ matches: [pend] }).filter(id => id !== lateIds[0][0]);
+  resolve(st, 0, lateIds[0], 'absent');
+  const r0 = st.rounds[0];
+  assert.strictEqual(r0.matches.length, 3);
+  assert.deepStrictEqual(r0.lapsed, [pend.court]);
+  assert.deepStrictEqual(r0.resting.slice().sort(), fill.slice().sort());
+  assert.ok(!r0.resting.includes(lateIds[0][0]) && !r0.late);
+  st.rounds = S.confirmRound(st, 0).rounds;
+  const [rep] = S.fairnessReport(st, st.rounds.slice(0, 1));
+  assert.strictEqual(rep.restsMax, 1);
+  checkLateValidity(st, st.rounds.slice(1));
+});
+
+test('late: two late on one court, one absent → court lapses; other undecided → round.late, present → resting', () => {
+  for (const firstPresent of [false, true]) {
+    const { st, lateIds } = lateState({ n: 16, late: 2, courts: 4 }); // 14 present: 2 odd + 2 late
+    const [a, b] = lateIds;
+    if (firstPresent) resolve(st, 0, a, 'present');
+    resolve(st, 0, b, 'absent');
+    const r0 = st.rounds[0];
+    assert.strictEqual(r0.matches.length, 3);
+    assert.ok(!onCourt(r0).includes(b[0]) && !r0.resting.includes(b[0]));
+    if (firstPresent) { assert.ok(r0.resting.includes(a[0])); assert.ok(!r0.late); }
+    else { assert.deepStrictEqual(r0.late, a); assert.ok(!r0.resting.includes(a[0])); }
+    assert.deepStrictEqual(S.undecidedLate(r0), firstPresent ? [] : a);
+  }
+});
+
+test('late: confirm with a late player still late → absent (lapse) or present; Late never carries over', () => {
+  for (const outcome of ['absent', 'present']) {
+    const { st, lateIds } = lateState({ n: 16, late: 1, courts: 4 });
+    confirmWithLate(st, 0, outcome);
+    const p = st.players.find(x => x.id === lateIds[0][0]);
+    assert.strictEqual(p.status, outcome);
+    const r0 = st.rounds[0];
+    assert.strictEqual(r0.status, 'confirmed');
+    assert.ok(!r0.matches.some(m => m.pending) && !r0.late);
+    assert.strictEqual(r0.matches.length, outcome === 'present' ? 4 : 3);
+    assert.ok(st.rounds.slice(1).every(r => !r.late && !r.matches.some(m => m.pending)));
+    checkLateValidity(st, st.rounds.slice(1));
+  }
+});
+
+test('late in teams mode: a team with one late player is a late team on the pending court', () => {
+  const { st, lateIds } = lateState({ n: 8, late: 1, courts: 4, mode: 'teams' }); // 7 present teams
+  const [r0] = st.rounds;
+  const pend = r0.matches.filter(m => m.pending);
+  assert.strictEqual(pend.length, 1);
+  assert.deepStrictEqual(pend[0].late.slice().sort(), lateIds[0].slice().sort(), 'both team members are late');
+  assert.ok([pend[0].teamA, pend[0].teamB].some(t => t.join() === lateIds[0].join()));
+  checkLateValidity(st, st.rounds);
+  resolve(st, 0, lateIds[0], 'absent');
+  assert.strictEqual(st.rounds[0].matches.length, 3);
+  assert.strictEqual(st.rounds[0].resting.length, 2, 'the present team rests');
+});
+
+test('late: rest fairness not distorted by lapses (16 players, 4 courts, 6 rounds)', () => {
+  const st = makeState({ groups: [['A', 16]], courts: 4, numRounds: 6, seed: 5 });
+  st.started = true;
+  st.rounds = S.scheduleState(st);
+  for (let ri = 0; ri < 6; ri++) {
+    if (ri < 2) { // one late player per round, court lapses, the player is back afterwards
+      const p = st.players[ri];
+      p.status = 'late';
+      st.rounds = S.scheduleState(st);
+      assert.ok(st.rounds[ri].matches.some(m => m.pending), `round ${ri + 1}: pending court`);
+      confirmWithLate(st, ri, 'absent');
+      p.status = 'present';
+      st.rounds = S.scheduleState(st);
+    } else st.rounds = S.confirmRound(st, ri).rounds;
+  }
+  const [rep] = S.fairnessReport(st, st.rounds);
+  assert.ok(rep.restsMax - rep.restsMin <= 1, `rests ${rep.restsMin}-${rep.restsMax}`);
+  assert.ok(rep.maxConsecutiveRests <= 1);
+  assert.strictEqual(rep.repeatedPartnerships, 0);
+  assert.strictEqual(st.rounds.reduce((s, r) => s + r.resting.length, 0), 6, 'two lapses × 3 rested');
+});
+
+test('late → absent in the final round: no crash, rest spread at most 2', () => {
+  const st = makeState({ groups: [['A', 16]], courts: 4, numRounds: 6, seed: 3 });
+  st.started = true;
+  st.rounds = S.scheduleState(st);
+  for (let ri = 0; ri < 5; ri++) st.rounds = S.confirmRound(st, ri).rounds;
+  st.players[7].status = 'late';
+  st.rounds = S.scheduleState(st);
+  assert.ok(st.rounds[5].matches.some(m => m.pending));
+  confirmWithLate(st, 5, 'absent');
+  assert.strictEqual(st.rounds.length, 6);
+  assert.ok(st.rounds.every(r => r.status === 'confirmed'));
+  const [rep] = S.fairnessReport(st, st.rounds);
+  assert.ok(rep.restsMax - rep.restsMin <= 2);
+});
+
+test('late: no late players → schedule identical to before (no extra fields)', () => {
+  const st = makeState({ groups: [['A', 15]], courts: 4, numRounds: 4 });
+  const rounds = S.scheduleState(st);
+  assert.ok(rounds.every(r => !('late' in r) && r.matches.every(m => !('pending' in m))));
+});
+
 if (ref69) {
   console.log('\nFairness report — reference 69 players, 9 courts, 6 rounds:');
   console.log(S.formatFairness(ref69));

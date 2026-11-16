@@ -322,30 +322,61 @@
   }
 
   // ---- Group scheduling ----
-  // group: {id, courts:[courtNo], units:[{id, members:[playerId], absentFromRound}]}
+  // group: {id, courts:[courtNo], units:[{id, members:[playerId], absentFromRound, late}]}
+  // Late units (SPEC_v2 §D) are inactive in every draft round. Only in the first draft round can they fill
+  // a "pending court": when the would-be resters plus at most LATE_CAP late units make one extra court.
+  // A normal full match never becomes pending. Unplaced late units go to round.late (no rest credit).
+  const LATE_CAP = { 4: 2, 2: 1 }; // late units per pending court: americano 2 players, teams 1 team
   function scheduleGroup(group, mode, N, history, seed) {
     const k = unitsPerCourt(mode);
     const rng = makeRng(seed);
-    const units = group.units;
+    const start = history.length;
+    const lateIdx = [];
+    group.units.forEach((u, i) => { if (u.late && isActive(u, start)) lateIdx.push(i); });
+    const units = lateIdx.length
+      ? group.units.map((u, i) => (lateIdx.includes(i) ? Object.assign({}, u, { absentFromRound: start }) : u))
+      : group.units;
     const idx = new Map();
     units.forEach((u, i) => u.members.forEach(p => idx.set(p, i)));
     const st = newStats(units.length);
     for (const round of history) applyRound(st, toLocalRound(round, group.id, idx));
+    const ids = us => us.flatMap(u => units[u].members);
+    const lateIds = lateIdx.length ? ids(lateIdx) : null;
 
-    const plan = planRests(units, st, history.length, N, k, group.courts.length, rng);
+    let plan = planRests(units, st, start, N, k, group.courts.length, rng);
     const out = [];
-    for (const pr of plan) {
+    for (let pi = 0; pi < plan.length; pi++) {
+      const pr = plan[pi];
       const resting = new Set(pr.resting);
       const playing = pr.act.filter(u => !resting.has(u));
       const matches = matchRound(st, playing, group.courts.slice(0, pr.c), k, rng);
-      applyRound(st, { matches, resting: pr.resting });
-      const ids = us => us.flatMap(u => units[u].members);
-      out.push({
-        matches: matches.map(m => ({
-          court: m.court, groupId: group.id, teamA: ids(m.A), teamB: ids(m.B), scoreA: null, scoreB: null,
-        })),
-        resting: ids(pr.resting),
-      });
+      let restingOut = pr.resting;
+      let lateOut = lateIds;
+      let pendingMatch = null;
+      if (pi === 0 && lateIdx.length && pr.c < group.courts.length) {
+        const need = k - pr.resting.length; // late units needed to complete one more court
+        if (need >= 1 && need <= Math.min(LATE_CAP[k], lateIdx.length)) {
+          const late = lateIdx.slice(0, need);
+          const [pm] = matchRound(st, pr.resting.concat(late), [group.courts[pr.c]], k, rng);
+          matches.push(pm);
+          pendingMatch = pm;
+          restingOut = [];
+          lateOut = ids(lateIdx.slice(need));
+        }
+      }
+      applyRound(st, { matches, resting: restingOut });
+      const lr = {
+        matches: matches.map(m => {
+          const mm = { court: m.court, groupId: group.id, teamA: ids(m.A), teamB: ids(m.B), scoreA: null, scoreB: null };
+          if (m === pendingMatch) { mm.pending = true; mm.late = mm.teamA.concat(mm.teamB).filter(p => lateIds.includes(p)); }
+          return mm;
+        }),
+        resting: ids(restingOut),
+      };
+      if (lateOut && lateOut.length) lr.late = lateOut;
+      out.push(lr);
+      // The first round changed (no rests): re-plan the later rounds from the updated statistics.
+      if (pendingMatch && N > start + 1) plan = plan.slice(0, 1).concat(planRests(units, st, start + 1, N, k, group.courts.length, rng));
     }
     return out;
   }
@@ -367,6 +398,8 @@
         matches: perGroup.flatMap(g => g[gi].matches).sort((a, b) => a.court - b.court),
         resting: perGroup.flatMap(g => g[gi].resting),
       });
+      const late = perGroup.flatMap(g => g[gi].late || []);
+      if (late.length) out[out.length - 1].late = late;
     }
     return out;
   }
@@ -383,12 +416,13 @@
       return state.teams.filter(t => t.groupId === groupId).map(t => {
         const scheduled = t.playerIds.every(id => isScheduled(byId.get(id)));
         const abs = t.playerIds.map(id => byId.get(id) && byId.get(id).absentFromRound).filter(x => x != null);
-        return { id: t.id, members: t.playerIds.slice(), scheduled,
+        const late = scheduled && t.playerIds.some(id => byId.get(id).status === 'late');
+        return { id: t.id, members: t.playerIds.slice(), scheduled, late,
           absentFromRound: !scheduled ? 0 : abs.length ? Math.min(...abs) : null };
       });
     }
     return state.players.filter(p => p.groupId === groupId)
-      .map(p => ({ id: p.id, members: [p.id], scheduled: isScheduled(p),
+      .map(p => ({ id: p.id, members: [p.id], scheduled: isScheduled(p), late: p.status === 'late',
         absentFromRound: isScheduled(p) ? p.absentFromRound : 0 }));
   }
   const scheduledUnits = (state, groupId) => unitsForGroup(state, groupId).filter(u => u.scheduled);
@@ -466,6 +500,40 @@
     return { rounds: scheduleState(Object.assign({}, state, { rounds })) };
   }
 
+  // Resolve late player(s) ids (a player, or both members of a late team) in a draft round.
+  // 'present': off the pending list (court plays normally once nobody is late) or, if not on a court, resting.
+  // 'absent': a pending court lapses — its present players rest (rest credit), other undecided late players
+  // go to round.late (no credit), the absent ones leave the round. Returns a new round.
+  function resolveLate(round, lateIds, outcome) {
+    const gone = new Set(lateIds);
+    const r = Object.assign({}, round, { matches: round.matches.slice(), resting: round.resting.slice(), late: (round.late || []).slice() });
+    const off = r.late.filter(p => gone.has(p));
+    if (off.length) {
+      r.late = r.late.filter(p => !gone.has(p));
+      if (outcome === 'present') r.resting.push(...off);
+    }
+    const mi = r.matches.findIndex(m => m.pending && m.late.some(p => gone.has(p)));
+    if (mi >= 0) {
+      const m = r.matches[mi];
+      const stillLate = m.late.filter(p => !gone.has(p));
+      if (outcome === 'present') {
+        const mm = Object.assign({}, m, { late: stillLate });
+        if (!stillLate.length) { delete mm.pending; delete mm.late; }
+        r.matches[mi] = mm;
+      } else {
+        r.matches.splice(mi, 1);
+        const all = m.teamA.concat(m.teamB);
+        r.resting.push(...all.filter(p => !m.late.includes(p)));
+        r.late.push(...stillLate);
+        r.lapsed = (round.lapsed || []).concat(m.court);
+      }
+    }
+    if (!r.late.length) delete r.late;
+    return r;
+  }
+  // Late players still undecided in a round (on a pending court or in round.late).
+  const undecidedLate = round => [...new Set((round.late || []).concat(...round.matches.filter(m => m.pending).map(m => m.late)))];
+
   // Restart: keep players and settings, delete rounds and scores, clear absences.
   function restartTournament(state) {
     return Object.assign({}, state, {
@@ -535,7 +603,7 @@
     W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
     makeRng, unitsPerCourt, allocateCourts, groupLoad,
     scheduleRounds, scheduleState, unitsForGroup, scheduledUnits, isScheduled, confirmedPrefix,
-    editableIndex, swapPlayers, confirmRound, restartTournament,
+    editableIndex, swapPlayers, confirmRound, restartTournament, resolveLate, undecidedLate,
     fairnessReport, formatFairness,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

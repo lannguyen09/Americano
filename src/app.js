@@ -231,10 +231,23 @@
     const st = u.members.map(id => pm.get(id).status || 'present');
     return st.every(x => x === st[0]) ? st[0] : 'pending';
   }
+  // Late → Present / Absent while a round runs: resolve it in the current round (pending court plays
+  // or lapses) and regenerate only the later suggested rounds. Other changes regenerate all drafts.
   function setStatus(memberIds, status) {
     const ids = new Set(memberIds);
+    const idx = S.editableIndex(state.rounds || []);
+    const round = state.started ? state.rounds[idx] : null;
+    const resolving = round && (status === 'present' || status === 'absent') &&
+      S.undecidedLate(round).some(id => ids.has(id));
     state.players.forEach(p => { if (ids.has(p.id)) p.status = status; });
-    regenerate();
+    if (!resolving) return regenerate();
+    state.rounds = state.rounds.slice();
+    state.rounds[idx] = S.resolveLate(round, memberIds, status);
+    state.rounds = S.scheduleState(state, null, idx + 1);
+  }
+  // Units (player, or team) having a member among ids.
+  function unitsWith(ids) {
+    return state.groups.flatMap(g => S.unitsForGroup(state, g.id)).filter(u => u.members.some(id => ids.includes(id)));
   }
   function markAllPresent(gid) {
     state.players.forEach(p => { if (p.groupId === gid && (p.status || 'present') === 'pending') p.status = 'present'; });
@@ -540,7 +553,34 @@
       selected = null;
     });
   }
+  // Confirm with late players still undecided: one choice per late unit, default "Absent (match lapses)".
   function confirmCurrent(idx) {
+    const late = unitsWith(S.undecidedLate(state.rounds[idx]));
+    if (!late.length) return doConfirm(idx);
+    const pm = playerMap();
+    const dlg = el('dialog', { class: 'late-dialog' });
+    const choices = late.map(u => {
+      const name = u.members.map(id => pm.get(id).name).join(' / ');
+      const sel = el('select', {},
+        el('option', { value: 'absent' }, T('late.absent')),
+        el('option', { value: 'present' }, T('late.present')));
+      return { u, sel, row: el('label', { class: 'late-row' }, el('strong', {}, name), sel) };
+    });
+    const close = () => { dlg.close(); dlg.remove(); };
+    dlg.append(el('h3', {}, T('late.title', { n: idx + 1 })), choices.map(c => c.row),
+      el('div', { class: 'row' },
+        el('button', { class: 'primary', onclick: () => {
+          const picked = choices.map(c => [c.u.members, c.sel.value]);
+          close();
+          act(() => picked.forEach(([ids, v]) => setStatus(ids, v)));
+          doConfirm(idx);
+        } }, T('late.confirm', { n: idx + 1 })),
+        el('button', { onclick: close }, T('common.cancel'))));
+    dlg.addEventListener('cancel', () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+  }
+  function doConfirm(idx) {
     act(() => {
       const res = S.confirmRound(state, idx);
       if (res.error) return setNotice('error', res.error);
@@ -610,9 +650,11 @@
     // Scores only in confirmed rounds; names are clickable only in the current (editable) round.
     const team = (m, key, label) => {
       const ids = m[key === 'scoreA' ? 'teamA' : 'teamB'];
+      const isLate = id => m.pending && m.late.includes(id);
       return el('div', { class: 'team-row' },
         el('div', { class: 'tnames', title: ids.map(name).join(' / ') },
-          ids.map((id, i) => [i ? ' / ' : null, pname(id)])),
+          ids.map((id, i) => [i ? ' / ' : null,
+            isLate(id) ? el('span', { class: 'late-slot' }, T('rounds.lateSlot', { name: name(id) })) : pname(id)])),
         round.status === 'confirmed' ? scoreInput(m, key, label) : null);
     };
 
@@ -637,20 +679,33 @@
 
     const cards = el('div', { class: 'courts' + (round.status === 'draft' ? ' draft' : '') }, round.matches.map(m => {
       const g = gm.get(m.groupId) || { name: '', color: null };
-      return el('div', { class: 'court', style: gStyle(g.color) },
+      const lateUnits = m.pending ? unitsWith(m.late) : [];
+      const uname = u => u.members.map(name).join(' / ');
+      return el('div', { class: 'court' + (m.pending ? ' pending' : ''), style: gStyle(g.color) },
         el('div', { class: 'court-head' }, T('rounds.court', { n: m.court, group: g.name })),
-        team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')));
+        m.pending ? el('div', { class: 'waiting' }, T('rounds.waitingFor', { names: lateUnits.map(uname).join(', ') })) : null,
+        team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
+        m.pending && editable ? el('div', { class: 'late-actions' }, lateUnits.map(u => [
+          el('button', { onclick: () => act(() => setStatus(u.members, 'present')) }, T('rounds.arrived', { name: uname(u) })),
+          el('button', { class: 'danger', onclick: () => act(() => setStatus(u.members, 'absent')) }, T('rounds.lateAbsent', { name: uname(u) })),
+        ])) : null);
     }));
+    const lapsed = (round.lapsed || []).map(c => el('p', { class: 'muted' }, T('rounds.lapsed', { n: c })));
 
-    const groupsResting = state.groups.map(g => ({
-      g, ids: round.resting.filter(id => (pm.get(id) || {}).groupId === g.id).sort((a, b) => name(a).localeCompare(name(b))),
-    })).filter(x => x.ids.length);
+    const inGroup = (list, g) => (list || []).filter(id => (pm.get(id) || {}).groupId === g.id).sort((a, b) => name(a).localeCompare(name(b)));
+    const groupsResting = state.groups.map(g => ({ g, ids: inGroup(round.resting, g), late: inGroup(round.late, g) }))
+      .filter(x => x.ids.length || x.late.length);
+    // Late players not on a court wait here: no rest credit. Click (current round) to resolve them.
+    const lateChip = id => (editable
+      ? el('button', { class: 'chip late', title: T('rounds.arrived', { name: name(id) }),
+        onclick: () => act(() => setStatus(unitsWith([id])[0].members, 'present')) }, name(id), el('small', {}, ' ' + T('rounds.lateLabel')))
+      : el('span', { class: 'chip late' }, name(id), el('small', {}, ' ' + T('rounds.lateLabel'))));
     const resting = el('div', { class: 'resting' }, el('h3', {}, T('rounds.resting')),
-      groupsResting.length ? groupsResting.map(({ g, ids }) => el('div', { class: 'rest-group', style: gStyle(g.color) },
+      groupsResting.length ? groupsResting.map(({ g, ids, late }) => el('div', { class: 'rest-group', style: gStyle(g.color) },
         el('span', { class: 'rest-label' }, g.name),
-        ids.map(id => pname(id, 'chip')))) : el('p', { class: 'muted' }, T('rounds.nobodyRests')));
+        ids.map(id => pname(id, 'chip')), late.map(lateChip))) : el('p', { class: 'muted' }, T('rounds.nobodyRests')));
 
-    return el('div', { class: 'rounds' }, bar, title, msg, tools, cards, resting);
+    return el('div', { class: 'rounds' }, bar, title, msg, tools, lapsed, cards, resting);
   };
 
   const notStarted = () => el('div', { class: 'card empty' }, T('rounds.empty'));
@@ -666,6 +721,8 @@
     const where = new Map();
     round.matches.forEach(m => m.teamA.concat(m.teamB).forEach(id => where.set(id, T('court.n', { n: m.court }))));
     round.resting.forEach(id => where.set(id, null));
+    (round.late || []).forEach(id => where.set(id, T('find.late')));
+    round.matches.filter(m => m.pending).forEach(m => m.late.forEach(id => where.set(id, T('find.late') + ' · ' + T('court.n', { n: m.court }))));
     const players = state.players.slice().sort((a, b) => a.name.localeCompare(b.name));
     const items = players.map(p => {
       const court = where.get(p.id);

@@ -38,7 +38,7 @@
       if (r.status !== 'confirmed' && !r.matches.some(hasScore)) continue;
       for (const row of rowsFor(r.resting)) row.rested++;
       for (const m of r.matches) {
-        if (!hasScore(m)) continue;
+        if (m.pending || !hasScore(m)) continue; // no scores count while a court is pending
         for (const [ids, gf, ga] of [[m.teamA, m.scoreA, m.scoreB], [m.teamB, m.scoreB, m.scoreA]]) {
           for (const row of rowsFor(ids)) {
             row.played++; row.won += gf; row.lost += ga;

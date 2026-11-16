@@ -95,7 +95,7 @@ test('69 names parse fast', () => {
   assert.ok(Date.now() - t0 < 200);
 });
 
-test('scheduler: only Present and Late are scheduled (no status = Present)', () => {
+test('scheduler: only Present and Late are scheduled (no status = Present; Late may wait in round.late)', () => {
   const st = ['pending', 'present', 'late', 'absent', undefined];
   const state = {
     mode: 'americano', numRounds: 3, seed: 7, rounds: [],
@@ -107,7 +107,7 @@ test('scheduler: only Present and Late are scheduled (no status = Present)', () 
   assert.strictEqual(ok.size, 6);
   assert.strictEqual(S.scheduledUnits(state, 'g1').length, 6);
   for (const r of S.scheduleState(state)) {
-    const ids = r.matches.flatMap(m => m.teamA.concat(m.teamB)).concat(r.resting);
+    const ids = r.matches.flatMap(m => m.teamA.concat(m.teamB)).concat(r.resting, r.late || []);
     assert.ok(ids.every(id => ok.has(id)), 'unscheduled player in round');
     assert.strictEqual(ids.length, 6);
   }
