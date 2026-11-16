@@ -324,6 +324,19 @@ test('allocate manual (floorplan clicks): courts per group from the map, errors 
   assert.ok(e.errors.some(x => x.includes('Beginner')));
 });
 
+test('compact palette: distinct colours per group, deterministic per seed', () => {
+  const pal = ['#1F3FBF', '#E0489B', '#E5561E', '#FFD700'];
+  for (let seed = 1; seed <= 50; seed++) {
+    const c = S.pickGroupColors(pal, 4, seed);
+    assert.strictEqual(new Set(c).size, 4, `seed ${seed}: distinct`);
+    assert.ok(c.every(x => pal.includes(x)));
+    assert.deepStrictEqual(S.pickGroupColors(pal, 4, seed), c, 'same seed → same colours');
+  }
+  const firsts = new Set(Array.from({ length: 20 }, (_, i) => S.pickGroupColors(pal, 2, i + 1).join()));
+  assert.ok(firsts.size > 1, 'different seeds give different picks');
+  assert.deepStrictEqual(pal, ['#1F3FBF', '#E0489B', '#E5561E', '#FFD700'], 'palette not mutated');
+});
+
 // ---------- Late players (SPEC_v2 §D) ----------
 // n units in group 'A'; the last `late` units are Late (teams: first member only).
 function lateState({ n, late, courts, numRounds = 6, mode = 'americano' }) {

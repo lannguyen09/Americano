@@ -5,6 +5,8 @@
   const STRINGS = {
     en: {
       'app.title': 'Padel Americano',
+      'app.subtitle': 'Americano',
+      'rounds.shuffleColours': 'Shuffle colours',
 
       'tab.setup': 'Setup',
       'tab.rounds': 'Rounds',

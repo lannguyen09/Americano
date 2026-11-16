@@ -24,17 +24,35 @@ const themeCss = Object.entries(theme.colors || {}).map(([k, v]) => {
   if (!/^#[0-9a-f]{3,8}$/i.test(v)) throw new Error(`Theme colour ${k} must be a hex colour, got "${v}"`);
   return `  ${cssName(k)}: ${v};`;
 }).join('\n');
-// floorplan: {rows, cols, numbering: 'bottom-left-rows', reception: 'bottom', tags: {courtNo: {badge, edge}}}
+// Logos: data-URI, or a file next to the theme JSON (inlined as data-URI). Missing file → no logo (title text).
+const MIME = { '.png': 'image/png', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
+const logos = {};
+for (const [k, v] of Object.entries(theme.logos || {})) {
+  if (/^data:/.test(v)) { logos[k] = v; continue; }
+  const f = path.join(__dirname, 'theme', v);
+  const mime = MIME[path.extname(f).toLowerCase()];
+  if (!mime) throw new Error(`Logo ${k}: unsupported file type "${v}"`);
+  if (!fs.existsSync(f)) { console.warn(`Warning: logo ${k} not found: theme/${v} (built without it)`); continue; }
+  logos[k] = `data:${mime};base64,${fs.readFileSync(f).toString('base64')}`;
+}
+const hex = v => /^#[0-9a-f]{3,8}$/i.test(v);
+const palette = theme.compactPalette || [];
+if (!Array.isArray(palette) || !palette.every(hex)) throw new Error('compactPalette must be a list of hex colours');
+// floorplan: {rows, cols, numbering: 'bottom-left-rows', reception: 'bottom', tags: {courtNo: {badge, edge}},
+//             courtColors: {courtNo: hex}}
 // Presentation only (no effect on scheduling). Missing → Compact view only.
 const fp = theme.floorplan || null;
 if (fp) {
   if (!(Number.isInteger(fp.rows) && fp.rows > 0 && Number.isInteger(fp.cols) && fp.cols > 0)) throw new Error('Theme floorplan needs integer rows and cols');
   if (fp.numbering && fp.numbering !== 'bottom-left-rows') throw new Error(`Unsupported floorplan numbering "${fp.numbering}"`);
   for (const [c, tag] of Object.entries(fp.tags || {})) {
-    if (tag.edge && !/^#[0-9a-f]{3,8}$/i.test(tag.edge)) throw new Error(`Floorplan court ${c} edge must be a hex colour`);
+    if (tag.edge && !hex(tag.edge)) throw new Error(`Floorplan court ${c} edge must be a hex colour`);
+  }
+  for (const [c, v] of Object.entries(fp.courtColors || {})) {
+    if (!hex(v)) throw new Error(`Floorplan court ${c} colour must be a hex colour`);
   }
 }
-const themeJs = { name: theme.name || 'generic', clubName: theme.clubName || '', title: theme.title || '', logos: theme.logos || {}, floorplan: fp };
+const themeJs = { name: theme.name || 'generic', clubName: theme.clubName || '', title: theme.title || '', logos, floorplan: fp, compactPalette: palette };
 const title = theme.title || require('./src/strings.js').t('app.title');
 
 let html = read('index.template.html');

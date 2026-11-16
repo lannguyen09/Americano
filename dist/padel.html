@@ -47,7 +47,8 @@ body {
   padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line);
 }
 .topbar h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
-.topbar .logo { height: 32px; width: auto; }
+.topbar .logo { height: 36px; width: auto; max-width: 100%; object-fit: contain; }
+.topbar .subtitle { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: .04em; }
 #tabs { display: flex; gap: 4px; }
 #tabs button {
   font: inherit; padding: 8px 16px; border: 0; border-radius: 6px;
@@ -271,6 +272,13 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 }
 .fcourt.edge { box-shadow: inset 0 0 0 4px var(--edge); }
 .fcourt.unused { background: var(--surface); color: var(--muted); border: 2px dashed var(--line); filter: grayscale(1); }
+.fcourt.unused.tinted { background: var(--g); color: var(--g-text); border-color: var(--line); filter: none; }
+.group-badge {
+  display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; vertical-align: middle;
+  background: var(--g); color: var(--g-text); border: 1px solid var(--surface); font-size: .7em;
+}
+.final-head h1 { display: flex; align-items: center; gap: .4em; }
+.final-head .ring { height: 1em; width: auto; }
 .fcourt-head { font-weight: 700; padding: 6px 12px; font-size: clamp(14px, 5cqi, 26px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fcourt-unused { padding: 6px 12px 12px; font-size: clamp(14px, 5cqi, 24px); }
 .fcourt .vs::before, .fcourt .vs::after { border-color: currentColor; opacity: .4; }
@@ -278,7 +286,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 .fcourt .late-slot { color: inherit; opacity: .75; }
 .fcourt .late-actions { padding: 0 12px 10px; }
 .fcourt.pending {
-  background: repeating-linear-gradient(135deg, var(--g) 0 14px, color-mix(in srgb, var(--g) 70%, #fff) 14px 28px);
+  background: repeating-linear-gradient(135deg, var(--g) 0 14px, color-mix(in srgb, var(--g) 70%, var(--surface)) 14px 28px);
   border-style: dashed;
 }
 .rounds-floor.draft .fcourt:not(.unused) { border-style: dashed; }
@@ -302,7 +310,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   --group-1: #1F3FBF;
   --group-2: #E0489B;
   --group-3: #E5561E;
-  --group-4: #3FD0B8;
+  --group-4: #FFD700;
 }</style>
 </head>
 <body>
@@ -311,7 +319,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   <nav id="tabs"></nav>
 </header>
 <main id="view"></main>
-<script>window.THEME = {"name":"padelnext","clubName":"PadelNext","title":"PadelNext Americano","logos":{"wordmark":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='32' viewBox='0 0 120 32'%3E%3Crect width='120' height='32' rx='6' fill='%230B1F5C'/%3E%3Ctext x='60' y='21' font-family='sans-serif' font-size='13' font-weight='700' fill='%23FFFFFF' text-anchor='middle'%3EWORDMARK%3C/text%3E%3C/svg%3E","ring":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%23F7E84B' stroke-width='5'/%3E%3C/svg%3E"},"floorplan":{"rows":3,"cols":3,"numbering":"bottom-left-rows","reception":"bottom","tags":{"1":{"edge":"#F4A9CB"},"2":{"badge":"WPT"},"5":{"badge":"WPT"},"6":{"edge":"#F4A9CB"},"7":{"edge":"#F4A9CB"},"8":{"badge":"WPT"}}}};</script>
+<script>window.THEME = {"name":"padelnext","clubName":"PadelNext","title":"PadelNext Americano","logos":{},"floorplan":{"rows":3,"cols":3,"numbering":"bottom-left-rows","reception":"bottom","tags":{"2":{"badge":"WPT"},"5":{"badge":"WPT"},"8":{"badge":"WPT"}},"courtColors":{"1":"#FF69B4","2":"#0047AB","3":"#1434A4","4":"#1434A4","5":"#0047AB","6":"#FF69B4","7":"#FF69B4","8":"#0047AB","9":"#1434A4"}},"compactPalette":["#1F3FBF","#E0489B","#E5561E","#FFD700"]};</script>
 <script>/* Padel Americano — all UI text. One table per language; t(key, vars) fills {placeholders}. */
 (function (root) {
   'use strict';
@@ -319,6 +327,8 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   const STRINGS = {
     en: {
       'app.title': 'Padel Americano',
+      'app.subtitle': 'Americano',
+      'rounds.shuffleColours': 'Shuffle colours',
 
       'tab.setup': 'Setup',
       'tab.rounds': 'Rounds',
@@ -675,6 +685,13 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     }
     const ids = new Set(groups.map(g => g.id));
     return { counts, assignment, idle: all.filter(c => !ids.has(courtMap[c])), errors };
+  }
+
+  // Compact-view group colours: n distinct colours from the palette, random but fixed per seed.
+  // More groups than colours → the palette repeats.
+  function pickGroupColors(palette, n, seed) {
+    const shuffled = makeRng(seed).shuffle(palette.slice());
+    return Array.from({ length: n }, (_, i) => shuffled[i % shuffled.length]);
   }
 
   // Playing / resting units per round for a group.
@@ -1177,7 +1194,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 
   const api = {
     W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
-    makeRng, unitsPerCourt, allocateCourts, allocateManual, groupLoad,
+    makeRng, unitsPerCourt, allocateCourts, allocateManual, groupLoad, pickGroupColors,
     scheduleRounds, scheduleState, unitsForGroup, scheduledUnits, isScheduled, confirmedPrefix,
     editableIndex, swapPlayers, confirmRound, restartTournament, resolveLate, undecidedLate,
     fairnessReport, formatFairness,
@@ -1375,17 +1392,24 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 
   const TABS = ['setup', 'rounds', 'find', 'rankings', 'data'].map(id => [id, T('tab.' + id)]);
 
-  // Header: title and logo from the theme (none in the generic build).
+  // Header: wordmark + small "Americano" subtitle; title text only when the theme has no wordmark.
+  // Ring logo: favicon (and final standings).
+  const LOGOS = THEME.logos || {};
   (function applyTheme() {
     const title = THEME.title || T('app.title');
     document.title = title;
     const h1 = document.querySelector('.topbar h1');
-    h1.textContent = title;
-    const logo = THEME.logos && THEME.logos.wordmark;
-    if (logo) {
+    if (LOGOS.wordmark) {
       const img = document.createElement('img');
-      img.className = 'logo'; img.src = logo; img.alt = THEME.clubName || '';
-      h1.prepend(img);
+      img.className = 'logo'; img.src = LOGOS.wordmark; img.alt = THEME.clubName || title;
+      const sub = document.createElement('span');
+      sub.className = 'subtitle'; sub.textContent = T('app.subtitle');
+      h1.replaceChildren(img, sub);
+    } else h1.textContent = title;
+    if (LOGOS.ring) {
+      const link = document.createElement('link');
+      link.rel = 'icon'; link.href = LOGOS.ring;
+      document.head.append(link);
     }
   })();
 
@@ -1449,6 +1473,14 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? 'var(--text)' : 'var(--brand-contrast)';
   }
   const gStyle = color => (color ? `--g:${color};--g-text:${groupText(color)}` : '');
+  // Mix two hex colours: w of a, (1 - w) of b. Non-hex input → a.
+  function mixHex(a, b, w) {
+    const rgb = c => { const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(c || '').trim()); if (!m) return null;
+      const h = m[1].length === 3 ? m[1].replace(/./g, x => x + x) : m[1]; return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+    const x = rgb(a), y = rgb(b);
+    if (!x || !y) return a;
+    return '#' + x.map((v, i) => Math.round(v * w + y[i] * (1 - w)).toString(16).padStart(2, '0')).join('');
+  }
   const DEMO_NAMES = ('Anna Bram Carla Daan Eva Floris Gwen Hugo Iris Jesse Kim Lars Maud Niels Olga ' +
     'Pieter Quinty Ruben Sanne Tim Ursula Victor Wendy Xander Yara Zeno Amber Bas Chloe Dirk Elise Frank ' +
     'Gina Hans Ilse Joost Karin Luuk Mila Noah Odile Paul Rosa Sem Tess Thijs Vera Wout Yvonne Bart Celine ' +
@@ -1708,11 +1740,22 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     state.numRounds = n;
     regenerate();
   }
+  // Compact view: each group a different random colour from the theme's compactPalette (seeded),
+  // stored in group.color (saved, exported). The floorplan uses court colours instead.
+  function pickCompactColors(seed) {
+    const palette = THEME.compactPalette && THEME.compactPalette.length ? THEME.compactPalette : COLORS;
+    S.pickGroupColors(palette, state.groups.length, seed).forEach((c, i) => { state.groups[i].color = c; });
+  }
+  function shuffleColors() {
+    const before = state.groups.map(g => g.color).join();
+    for (let i = 0; i < 10 && state.groups.map(g => g.color).join() === before; i++) pickCompactColors(newSeed() + i);
+  }
   function start() {
     const errs = startErrors();
     if (errs.length) return setNotice('error', errs.join(' '));
     state.courtAssignment = allocation().assignment;
     state.seed = newSeed();
+    pickCompactColors(state.seed);
     state.started = true;
     state.rounds = S.scheduleState(state);
     state.ui.tab = 'rounds';
@@ -2085,6 +2128,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
       fp ? el('div', { class: 'seg' }, ['compact', 'floorplan'].map(v => el('button', {
         class: viewMode === v ? 'active' : '', onclick: () => act(() => { state.ui.roundsView = v; }),
       }, T('view.' + v)))) : null,
+      viewMode === 'compact' ? el('button', { onclick: () => act(shuffleColors) }, T('rounds.shuffleColours')) : null,
       el('button', { class: 'fs-btn', onclick: toggleFullscreen }, T(document.fullscreenElement ? 'rounds.exitFullscreen' : 'rounds.fullscreen')));
 
     const title = el('h2', { class: 'round-title' }, T('rounds.title', { n: idx + 1, total: state.rounds.length }),
@@ -2129,12 +2173,20 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     ])) : null);
     // Floorplan: every court on its grid position; pending court striped; courts without a match grey "Unused".
     const byCourt = new Map(round.matches.map(m => [m.court, m]));
+    const courtColors = fp && fp.courtColors || {};
     const floorCards = () => floorGrid(fp, n => {
       const m = byCourt.get(n);
-      if (!m) return el('div', { class: 'fcourt unused' }, el('div', { class: 'fcourt-head' }, T('court.n', { n })), el('div', { class: 'fcourt-unused' }, T('floor.unused')));
+      const cc = courtColors[n];
+      if (!m) {
+        // Unused: light greyish tint (~25% court colour on light grey).
+        const tint = cc ? mixHex(cc, cssVar('--line'), 0.25) : null;
+        return el('div', { class: 'fcourt unused' + (tint ? ' tinted' : ''), style: tint ? gStyle(tint) : null },
+          el('div', { class: 'fcourt-head' }, T('court.n', { n })), el('div', { class: 'fcourt-unused' }, T('floor.unused')));
+      }
       const g = gm.get(m.groupId) || { name: '', color: null };
-      return el('div', { class: 'fcourt court' + (m.pending ? ' pending' : ''), style: gStyle(g.color) },
-        el('div', { class: 'fcourt-head' }, T('rounds.court', { n, group: g.name })),
+      return el('div', { class: 'fcourt court' + (m.pending ? ' pending' : ''), style: gStyle(cc || g.color) },
+        el('div', { class: 'fcourt-head' }, T('court.n', { n }),
+          el('span', { class: 'group-badge', style: gStyle(g.color) }, g.name)),
         team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
         lateButtons(m, true));
     }, 'rounds-floor' + (round.status === 'draft' ? ' draft' : ''));
@@ -2260,7 +2312,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
           el('td', { class: 'num strong' }, String(r.won)),
           el('td', { class: 'num' }, diff(r.diff))))))));
     return el('div', { class: 'final-overlay', role: 'dialog', 'aria-label': T('rank.final') },
-      el('div', { class: 'final-head' }, el('h1', {}, T('rank.final')),
+      el('div', { class: 'final-head' }, el('h1', {}, LOGOS.ring ? el('img', { class: 'ring', src: LOGOS.ring, alt: '' }) : null, T('rank.final')),
         el('button', { class: 'final-close', 'aria-label': T('final.close'), title: T('final.close'), onclick: close }, '✕')),
       el('div', { class: 'final-groups' }, cols));
   }

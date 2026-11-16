@@ -118,6 +118,13 @@
     return { counts, assignment, idle: all.filter(c => !ids.has(courtMap[c])), errors };
   }
 
+  // Compact-view group colours: n distinct colours from the palette, random but fixed per seed.
+  // More groups than colours → the palette repeats.
+  function pickGroupColors(palette, n, seed) {
+    const shuffled = makeRng(seed).shuffle(palette.slice());
+    return Array.from({ length: n }, (_, i) => shuffled[i % shuffled.length]);
+  }
+
   // Playing / resting units per round for a group.
   function groupLoad(size, courts, mode) {
     const k = unitsPerCourt(mode);
@@ -618,7 +625,7 @@
 
   const api = {
     W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
-    makeRng, unitsPerCourt, allocateCourts, allocateManual, groupLoad,
+    makeRng, unitsPerCourt, allocateCourts, allocateManual, groupLoad, pickGroupColors,
     scheduleRounds, scheduleState, unitsForGroup, scheduledUnits, isScheduled, confirmedPrefix,
     editableIndex, swapPlayers, confirmRound, restartTournament, resolveLate, undecidedLate,
     fairnessReport, formatFairness,

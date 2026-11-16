@@ -7,17 +7,24 @@
 
   const TABS = ['setup', 'rounds', 'find', 'rankings', 'data'].map(id => [id, T('tab.' + id)]);
 
-  // Header: title and logo from the theme (none in the generic build).
+  // Header: wordmark + small "Americano" subtitle; title text only when the theme has no wordmark.
+  // Ring logo: favicon (and final standings).
+  const LOGOS = THEME.logos || {};
   (function applyTheme() {
     const title = THEME.title || T('app.title');
     document.title = title;
     const h1 = document.querySelector('.topbar h1');
-    h1.textContent = title;
-    const logo = THEME.logos && THEME.logos.wordmark;
-    if (logo) {
+    if (LOGOS.wordmark) {
       const img = document.createElement('img');
-      img.className = 'logo'; img.src = logo; img.alt = THEME.clubName || '';
-      h1.prepend(img);
+      img.className = 'logo'; img.src = LOGOS.wordmark; img.alt = THEME.clubName || title;
+      const sub = document.createElement('span');
+      sub.className = 'subtitle'; sub.textContent = T('app.subtitle');
+      h1.replaceChildren(img, sub);
+    } else h1.textContent = title;
+    if (LOGOS.ring) {
+      const link = document.createElement('link');
+      link.rel = 'icon'; link.href = LOGOS.ring;
+      document.head.append(link);
     }
   })();
 
@@ -81,6 +88,14 @@
     return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? 'var(--text)' : 'var(--brand-contrast)';
   }
   const gStyle = color => (color ? `--g:${color};--g-text:${groupText(color)}` : '');
+  // Mix two hex colours: w of a, (1 - w) of b. Non-hex input → a.
+  function mixHex(a, b, w) {
+    const rgb = c => { const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(c || '').trim()); if (!m) return null;
+      const h = m[1].length === 3 ? m[1].replace(/./g, x => x + x) : m[1]; return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+    const x = rgb(a), y = rgb(b);
+    if (!x || !y) return a;
+    return '#' + x.map((v, i) => Math.round(v * w + y[i] * (1 - w)).toString(16).padStart(2, '0')).join('');
+  }
   const DEMO_NAMES = ('Anna Bram Carla Daan Eva Floris Gwen Hugo Iris Jesse Kim Lars Maud Niels Olga ' +
     'Pieter Quinty Ruben Sanne Tim Ursula Victor Wendy Xander Yara Zeno Amber Bas Chloe Dirk Elise Frank ' +
     'Gina Hans Ilse Joost Karin Luuk Mila Noah Odile Paul Rosa Sem Tess Thijs Vera Wout Yvonne Bart Celine ' +
@@ -340,11 +355,22 @@
     state.numRounds = n;
     regenerate();
   }
+  // Compact view: each group a different random colour from the theme's compactPalette (seeded),
+  // stored in group.color (saved, exported). The floorplan uses court colours instead.
+  function pickCompactColors(seed) {
+    const palette = THEME.compactPalette && THEME.compactPalette.length ? THEME.compactPalette : COLORS;
+    S.pickGroupColors(palette, state.groups.length, seed).forEach((c, i) => { state.groups[i].color = c; });
+  }
+  function shuffleColors() {
+    const before = state.groups.map(g => g.color).join();
+    for (let i = 0; i < 10 && state.groups.map(g => g.color).join() === before; i++) pickCompactColors(newSeed() + i);
+  }
   function start() {
     const errs = startErrors();
     if (errs.length) return setNotice('error', errs.join(' '));
     state.courtAssignment = allocation().assignment;
     state.seed = newSeed();
+    pickCompactColors(state.seed);
     state.started = true;
     state.rounds = S.scheduleState(state);
     state.ui.tab = 'rounds';
@@ -717,6 +743,7 @@
       fp ? el('div', { class: 'seg' }, ['compact', 'floorplan'].map(v => el('button', {
         class: viewMode === v ? 'active' : '', onclick: () => act(() => { state.ui.roundsView = v; }),
       }, T('view.' + v)))) : null,
+      viewMode === 'compact' ? el('button', { onclick: () => act(shuffleColors) }, T('rounds.shuffleColours')) : null,
       el('button', { class: 'fs-btn', onclick: toggleFullscreen }, T(document.fullscreenElement ? 'rounds.exitFullscreen' : 'rounds.fullscreen')));
 
     const title = el('h2', { class: 'round-title' }, T('rounds.title', { n: idx + 1, total: state.rounds.length }),
@@ -761,12 +788,20 @@
     ])) : null);
     // Floorplan: every court on its grid position; pending court striped; courts without a match grey "Unused".
     const byCourt = new Map(round.matches.map(m => [m.court, m]));
+    const courtColors = fp && fp.courtColors || {};
     const floorCards = () => floorGrid(fp, n => {
       const m = byCourt.get(n);
-      if (!m) return el('div', { class: 'fcourt unused' }, el('div', { class: 'fcourt-head' }, T('court.n', { n })), el('div', { class: 'fcourt-unused' }, T('floor.unused')));
+      const cc = courtColors[n];
+      if (!m) {
+        // Unused: light greyish tint (~25% court colour on light grey).
+        const tint = cc ? mixHex(cc, cssVar('--line'), 0.25) : null;
+        return el('div', { class: 'fcourt unused' + (tint ? ' tinted' : ''), style: tint ? gStyle(tint) : null },
+          el('div', { class: 'fcourt-head' }, T('court.n', { n })), el('div', { class: 'fcourt-unused' }, T('floor.unused')));
+      }
       const g = gm.get(m.groupId) || { name: '', color: null };
-      return el('div', { class: 'fcourt court' + (m.pending ? ' pending' : ''), style: gStyle(g.color) },
-        el('div', { class: 'fcourt-head' }, T('rounds.court', { n, group: g.name })),
+      return el('div', { class: 'fcourt court' + (m.pending ? ' pending' : ''), style: gStyle(cc || g.color) },
+        el('div', { class: 'fcourt-head' }, T('court.n', { n }),
+          el('span', { class: 'group-badge', style: gStyle(g.color) }, g.name)),
         team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
         lateButtons(m, true));
     }, 'rounds-floor' + (round.status === 'draft' ? ' draft' : ''));
@@ -892,7 +927,7 @@
           el('td', { class: 'num strong' }, String(r.won)),
           el('td', { class: 'num' }, diff(r.diff))))))));
     return el('div', { class: 'final-overlay', role: 'dialog', 'aria-label': T('rank.final') },
-      el('div', { class: 'final-head' }, el('h1', {}, T('rank.final')),
+      el('div', { class: 'final-head' }, el('h1', {}, LOGOS.ring ? el('img', { class: 'ring', src: LOGOS.ring, alt: '' }) : null, T('rank.final')),
         el('button', { class: 'final-close', 'aria-label': T('final.close'), title: T('final.close'), onclick: close }, '✕')),
       el('div', { class: 'final-groups' }, cols));
   }

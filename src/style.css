@@ -41,7 +41,8 @@ body {
   padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line);
 }
 .topbar h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
-.topbar .logo { height: 32px; width: auto; }
+.topbar .logo { height: 36px; width: auto; max-width: 100%; object-fit: contain; }
+.topbar .subtitle { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: .04em; }
 #tabs { display: flex; gap: 4px; }
 #tabs button {
   font: inherit; padding: 8px 16px; border: 0; border-radius: 6px;
@@ -265,6 +266,13 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 }
 .fcourt.edge { box-shadow: inset 0 0 0 4px var(--edge); }
 .fcourt.unused { background: var(--surface); color: var(--muted); border: 2px dashed var(--line); filter: grayscale(1); }
+.fcourt.unused.tinted { background: var(--g); color: var(--g-text); border-color: var(--line); filter: none; }
+.group-badge {
+  display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; vertical-align: middle;
+  background: var(--g); color: var(--g-text); border: 1px solid var(--surface); font-size: .7em;
+}
+.final-head h1 { display: flex; align-items: center; gap: .4em; }
+.final-head .ring { height: 1em; width: auto; }
 .fcourt-head { font-weight: 700; padding: 6px 12px; font-size: clamp(14px, 5cqi, 26px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fcourt-unused { padding: 6px 12px 12px; font-size: clamp(14px, 5cqi, 24px); }
 .fcourt .vs::before, .fcourt .vs::after { border-color: currentColor; opacity: .4; }
@@ -272,7 +280,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 .fcourt .late-slot { color: inherit; opacity: .75; }
 .fcourt .late-actions { padding: 0 12px 10px; }
 .fcourt.pending {
-  background: repeating-linear-gradient(135deg, var(--g) 0 14px, color-mix(in srgb, var(--g) 70%, #fff) 14px 28px);
+  background: repeating-linear-gradient(135deg, var(--g) 0 14px, color-mix(in srgb, var(--g) 70%, var(--surface)) 14px 28px);
   border-style: dashed;
 }
 .rounds-floor.draft .fcourt:not(.unused) { border-style: dashed; }
