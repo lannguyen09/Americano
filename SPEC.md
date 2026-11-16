@@ -103,7 +103,7 @@ Group < 4 players (teams: < 2 teams) → clear error. Group with 0 courts → bl
 More rounds than unique combos → minimise repeats, never crash.
 
 ## Out of scope (v1)
-Backend, accounts, multi-device sync, skill ratings, printing, tournament history.
+Backend, accounts, screenshots, printing, multi-device sync, skill ratings, printing, tournament history.
 
 ## Reference test case (must pass)
 69 players = 21 Advanced + 48 Beginner, 9 courts, Americano, 6 rounds.
@@ -111,3 +111,38 @@ Expected: Advanced 3 courts (12 play / 9 rest), Beginner 6 courts (24 play / 24 
 Rests per player: Advanced 2 or 3, Beginner exactly 3. Targets: 0 repeated partners for
 Beginners, 0 consecutive rests. Also test: 12 players/3 courts, 13 players/3 courts,
 100 players/12 courts one group, teams mode with 16 teams.
+
+## Match card layout (Rounds tab)
+- Card = header "Court N — <Group>" in group colour, then two stacked rows:
+  Team A row, thin "vs" divider, Team B row.
+- Each team row: both names on ONE line ("Name1 / Name2"), white-space: nowrap,
+  score input right-aligned in the same row. Fluid font (clamp), never break inside a word.
+- Grid: auto-fit, min card width ~420px. Min ~24px names at 1920px wide.
+- Resting panel: chips, nowrap, grouped by group.
+- "Next round" button plus arrow keys. Fullscreen button.
+
+## Draft / Suggested behaviour
+- Round 1 is a draft until confirmed. All later rounds are "Suggested" (dashed border, label).
+- Suggested rounds have no score entry.
+- Confirm → lock the lineup, regenerate all later rounds from the confirmed history, go to next round.
+- Manual swap/rename does NOT regenerate later rounds; confirming does.
+- Confirmed rounds are read-only except scores.
+
+## Tournament control
+- While running, the Setup tab shows a "Tournament running" banner with:
+  1. Edit setup: free while no round is confirmed. After that, mode and courts are locked
+     (show why); players and number of rounds can still change and regenerate Suggested rounds only.
+  2. Restart tournament: keeps players and settings, deletes rounds and scores. Confirm dialog.
+  3. New tournament: clears everything. Confirm dialog.
+- Rounds tab has a "← Setup" link.
+
+## Final standings
+- Button on the Rankings tab opens a full-screen overlay: top 3 highlighted, groups side by side
+  (stacked if narrow), readable from 3 m, Esc closes.
+
+## Decisions (defaults)
+- Teams ranking: one row per team, both names shown.
+- Leftover courts stay idle. Rank ties: competition ranking (1, 1, 3).
+- A match counts only when both scores are filled. Equal scores = draw. "Rounds won" = matches won.
+- Replace player: new player takes the spot, old one is marked absent.
+- Rest is planned with lookahead across rounds, not greedy per round.
