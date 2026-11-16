@@ -24,7 +24,17 @@ const themeCss = Object.entries(theme.colors || {}).map(([k, v]) => {
   if (!/^#[0-9a-f]{3,8}$/i.test(v)) throw new Error(`Theme colour ${k} must be a hex colour, got "${v}"`);
   return `  ${cssName(k)}: ${v};`;
 }).join('\n');
-const themeJs = { name: theme.name || 'generic', clubName: theme.clubName || '', title: theme.title || '', logos: theme.logos || {} };
+// floorplan: {rows, cols, numbering: 'bottom-left-rows', reception: 'bottom', tags: {courtNo: {badge, edge}}}
+// Presentation only (no effect on scheduling). Missing → Compact view only.
+const fp = theme.floorplan || null;
+if (fp) {
+  if (!(Number.isInteger(fp.rows) && fp.rows > 0 && Number.isInteger(fp.cols) && fp.cols > 0)) throw new Error('Theme floorplan needs integer rows and cols');
+  if (fp.numbering && fp.numbering !== 'bottom-left-rows') throw new Error(`Unsupported floorplan numbering "${fp.numbering}"`);
+  for (const [c, tag] of Object.entries(fp.tags || {})) {
+    if (tag.edge && !/^#[0-9a-f]{3,8}$/i.test(tag.edge)) throw new Error(`Floorplan court ${c} edge must be a hex colour`);
+  }
+}
+const themeJs = { name: theme.name || 'generic', clubName: theme.clubName || '', title: theme.title || '', logos: theme.logos || {}, floorplan: fp };
 const title = theme.title || require('./src/strings.js').t('app.title');
 
 let html = read('index.template.html');

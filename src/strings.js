@@ -119,6 +119,14 @@
       'alloc.auto': 'auto',
       'alloc.unused': 'Unused courts: {list}',
       'alloc.hint': 'Courts are assigned automatically by group size. Type a number to override.',
+      'alloc.floorHint': 'Click a court to give it to the next group (click again to cycle; last click = not used).',
+      'alloc.manual': 'Courts assigned by hand on the floorplan.',
+      'alloc.autoBtn': 'Back to automatic',
+      'floor.reception': 'Reception',
+      'floor.unused': 'Unused',
+      'floor.notAtClub': '—',
+      'view.compact': 'Compact',
+      'view.floorplan': 'Floorplan',
 
       // Court allocation errors (scheduler.js)
       'alloc.errTooSmall': 'Group "{name}" needs at least {k} {unit} (has {size}).',
@@ -163,6 +171,8 @@
       'rounds.nobodyRests': 'Nobody rests this round.',
       'rounds.waitingFor': 'Waiting for {names}',
       'rounds.lateSlot': 'Late: {name}',
+      'rounds.present': 'Present',
+      'rounds.absentBtn': 'Absent',
       'rounds.arrived': '{name} present',
       'rounds.lateAbsent': '{name} absent',
       'rounds.lateLabel': 'Late',

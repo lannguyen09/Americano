@@ -101,7 +101,16 @@
     return rows.map(r => [r[nameCol] || '', levelCol >= 0 ? r[levelCol] || '' : ''].join('\t').replace(/\t$/, '')).join('\n');
   }
 
-  const api = { norm, key, capitalise, splitTeam, uniqueName, parseLines, importToText };
+  // Short form when a name does not fit: last part as initial ("Jan de Vries" → "Jan de V."; "Jan (2)" stays).
+  function shortName(name) {
+    const w = norm(name).split(' ');
+    const suffix = w.length > 1 && /^\(\d+\)$/.test(w[w.length - 1]) ? ' ' + w.pop() : '';
+    if (w.length < 2) return w.join(' ') + suffix;
+    const last = w.pop();
+    return `${w.join(' ')} ${last.charAt(0)}.${suffix}`;
+  }
+
+  const api = { norm, key, capitalise, splitTeam, uniqueName, parseLines, importToText, shortName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Names = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

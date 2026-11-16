@@ -87,6 +87,14 @@ test('import CSV: header name,level / semicolon / no header', () => {
   assert.strictEqual(N.importToText('jan\tpiet\nkees\tbram', true), 'jan\tpiet\nkees\tbram');
 });
 
+test('shortName: last part as initial, numbered duplicates kept', () => {
+  assert.strictEqual(N.shortName('Jan de Vries'), 'Jan de V.');
+  assert.strictEqual(N.shortName('Anna Bakker'), 'Anna B.');
+  assert.strictEqual(N.shortName('Anna'), 'Anna');
+  assert.strictEqual(N.shortName('Jan Smit (2)'), 'Jan S. (2)');
+  assert.strictEqual(N.shortName('Jan (2)'), 'Jan (2)');
+});
+
 test('69 names parse fast', () => {
   const text = Array.from({ length: 69 }, (_, i) => 'player ' + i).join('\n');
   const t0 = Date.now();

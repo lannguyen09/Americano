@@ -24,8 +24,9 @@
   function defaultState() {
     return {
       version: 1, mode: 'americano', seed: 1, numRounds: 6, started: false, nextId: 0,
-      groups: [], players: [], teams: [], clubCourts: 12, courts: [], courtAssignment: {}, rounds: [],
-      ui: { tab: 'setup', roundIdx: 0, rankFilter: 'group' },
+      groups: [], players: [], teams: [], clubCourts: THEME.floorplan ? THEME.floorplan.rows * THEME.floorplan.cols : 12,
+      courts: [], courtMap: null, courtAssignment: {}, rounds: [],
+      ui: { tab: 'setup', roundIdx: 0, rankFilter: 'group', roundsView: 'floorplan' },
     };
   }
 
@@ -130,10 +131,52 @@
     state.rounds = S.scheduleState(state);
     state.ui.roundIdx = Math.max(0, Math.min(state.ui.roundIdx, state.rounds.length - 1));
   }
+  // courtMap ({courtNo: groupId}, set by clicking the floorplan) overrides the automatic allocation.
   function allocation() {
-    return S.allocateCourts(state.groups.map(g => ({
+    const groups = state.groups.map(g => ({
       id: g.id, name: g.name, size: S.scheduledUnits(state, g.id).length, override: g.courtsOverride,
-    })), state.courts, state.mode);
+    }));
+    return state.courtMap ? S.allocateManual(groups, state.courtMap, state.mode) : S.allocateCourts(groups, state.courts, state.mode);
+  }
+
+  // ---------- Floorplan (theme; presentation only) ----------
+  // Null when the theme has none or the club has more courts than grid cells → Compact only.
+  function floorplan() {
+    const fp = THEME.floorplan;
+    return fp && (state.clubCourts || 0) <= fp.rows * fp.cols ? fp : null;
+  }
+  // Numbering from bottom-left, row by row upward: court 1 bottom-left, rows*cols top-right.
+  function courtPos(n, fp) {
+    return { row: fp.rows - Math.floor((n - 1) / fp.cols), col: ((n - 1) % fp.cols) + 1 };
+  }
+  // Grid of all cells; cell(n) builds the card, placed on its position, with the theme's court tags.
+  function floorGrid(fp, cell, cls) {
+    const nums = Array.from({ length: fp.rows * fp.cols }, (_, i) => i + 1);
+    return el('div', { class: 'floor ' + (cls || '') },
+      el('div', { class: 'floor-grid', style: `grid-template-columns:repeat(${fp.cols},minmax(0,1fr))` }, nums.map(n => {
+        const card = cell(n);
+        const pos = courtPos(n, fp);
+        const tag = (fp.tags || {})[n] || {};
+        card.style.gridRow = pos.row;
+        card.style.gridColumn = pos.col;
+        if (tag.edge) { card.classList.add('edge'); card.style.setProperty('--edge', tag.edge); }
+        if (tag.badge) card.append(el('span', { class: 'court-badge' }, tag.badge));
+        return card;
+      })),
+      fp.reception === 'bottom' || !fp.reception ? el('div', { class: 'reception' }, '▲ ' + T('floor.reception')) : null);
+  }
+  // Click on the floorplan in Setup: cycle the court through the groups, then "not used".
+  function clickCourt(c) {
+    if (courtsLocked()) return;
+    if (!state.courtMap) {
+      state.courtMap = {};
+      for (const [gid, cs] of Object.entries(allocation().assignment)) cs.forEach(x => { state.courtMap[x] = gid; });
+    }
+    const order = [null].concat(state.groups.map(g => g.id));
+    const next = order[(order.indexOf(state.courtMap[c] || null) + 1) % order.length];
+    if (next) state.courtMap[c] = next; else delete state.courtMap[c];
+    state.courts = Object.keys(state.courtMap).map(Number).sort((a, b) => a - b);
+    regenerate();
   }
   // Units not checked in (status 'pending'): excluded from the schedule.
   const notCheckedIn = () => state.groups.reduce((n, g) =>
@@ -168,6 +211,10 @@
     state.groups = state.groups.filter(g => g.id !== gid);
     state.players = state.players.filter(p => p.groupId !== gid);
     state.teams = state.teams.filter(t => t.groupId !== gid);
+    if (state.courtMap) {
+      for (const c of Object.keys(state.courtMap)) if (state.courtMap[c] === gid) delete state.courtMap[c];
+      state.courts = Object.keys(state.courtMap).map(Number).sort((a, b) => a - b);
+    }
     regenerate();
   }
   function renameGroup(gid, name) {
@@ -274,9 +321,10 @@
     n = Math.max(1, Math.min(40, Math.floor(n) || 1));
     state.clubCourts = n;
     state.courts = state.courts.filter(c => c <= n);
+    if (state.courtMap) for (const c of Object.keys(state.courtMap)) if (+c > n) delete state.courtMap[c];
     regenerate();
   }
-  function setCourts(list) { state.courts = list.slice().sort((a, b) => a - b); regenerate(); }
+  function setCourts(list) { state.courtMap = null; state.courts = list.slice().sort((a, b) => a - b); regenerate(); }
   function toggleCourt(c) {
     setCourts(state.courts.includes(c) ? state.courts.filter(x => x !== c) : state.courts.concat(c));
   }
@@ -412,7 +460,7 @@
         el('td', { class: 'num' }, String(size)),
         el('td', { class: 'num' }, String(courts.length)),
         locked ? null : el('td', {}, el('input', {
-          type: 'number', min: 0, class: 'small', value: g.courtsOverride, placeholder: T('alloc.auto'),
+          type: 'number', min: 0, class: 'small', value: g.courtsOverride, placeholder: T('alloc.auto'), disabled: !!state.courtMap,
           onchange: e => act(() => setOverride(g.id, e.target.value)),
         })),
         el('td', {}, courts.length ? courts.join(', ') : '—'),
@@ -429,6 +477,26 @@
         el('tbody', {}, rows)),
       idle.length ? el('p', { class: 'muted' }, T('alloc.unused', { list: idle.join(', ') })) : null,
       !locked ? el('p', { class: 'muted' }, T('alloc.hint')) : null);
+  }
+
+  // Setup floorplan: courts coloured by group; click to assign (default: contiguous automatic allocation).
+  function setupFloor(fp, locked) {
+    const assign = locked ? state.courtAssignment : allocation().assignment;
+    const groupOf = {};
+    state.groups.forEach(g => (assign[g.id] || []).forEach(c => { groupOf[c] = g; }));
+    return el('div', {},
+      floorGrid(fp, n => {
+        const g = groupOf[n];
+        const atClub = n <= state.clubCourts;
+        return el('button', {
+          class: 'fcourt setup' + (g ? '' : ' unused'), style: g ? gStyle(g.color) : null,
+          disabled: locked || !atClub, onclick: () => act(() => clickCourt(n)),
+        }, el('strong', {}, T('court.n', { n })),
+        el('span', {}, !atClub ? T('floor.notAtClub') : g ? g.name : T('floor.unused')));
+      }, 'setup-floor'),
+      locked ? null : el('p', { class: 'muted' }, T('alloc.floorHint')),
+      !locked && state.courtMap ? el('p', { class: 'row' }, el('span', { class: 'muted' }, T('alloc.manual')),
+        el('button', { class: 'link', onclick: () => act(() => setCourts(state.courts)) }, T('alloc.autoBtn'))) : null);
   }
 
   views.setup = () => {
@@ -473,7 +541,7 @@
             onchange: e => act(() => setClubCourts(+e.target.value)) })),
         locked ? null : el('button', { class: 'link', onclick: () => act(() => setCourts(courtNos)) }, T('setup.selectAll')),
         locked ? null : el('button', { class: 'link', onclick: () => act(() => setCourts([])) }, T('setup.selectNone'))),
-      el('div', { class: 'court-toggles' }, courtNos.map(c => el('button', {
+      floorplan() ? setupFloor(floorplan(), locked) : el('div', { class: 'court-toggles' }, courtNos.map(c => el('button', {
         class: 'court-btn' + (state.courts.includes(c) ? ' on' : ''), disabled: locked,
         title: T('court.n', { n: c }), onclick: () => act(() => toggleCourt(c)),
       }, String(c)))),
@@ -630,9 +698,13 @@
     const editIdx = S.editableIndex(state.rounds);
     const editable = idx === editIdx && round.status === 'draft';
     const isSel = id => selected != null && sameUnit(selected, id);
+    // Names fit the card (see fitNames): shrink first, then last part as initial; full name on hover/tap.
+    const nameAttrs = id => ({ title: name(id), 'data-full': name(id), 'data-short': N.shortName(name(id)) });
     const pname = (id, cls) => (editable
-      ? el('button', { class: `pname ${cls || ''}${isSel(id) ? ' sel' : ''}`, onclick: () => pick(id) }, name(id))
-      : el('span', { class: cls || '' }, name(id)));
+      ? el('button', Object.assign(nameAttrs(id), { class: `pname nm ${cls || ''}${isSel(id) ? ' sel' : ''}`, onclick: () => pick(id) }), name(id))
+      : el('span', Object.assign(nameAttrs(id), { class: 'nm ' + (cls || ''), onclick: tapFull }), name(id)));
+    const fp = floorplan();
+    const viewMode = fp && state.ui.roundsView !== 'compact' ? 'floorplan' : 'compact';
 
     const bar = el('div', { class: 'round-bar' },
       el('button', { class: 'link back', onclick: () => act(() => { state.ui.tab = 'setup'; }) }, T('rounds.back')),
@@ -642,6 +714,9 @@
         onclick: () => goRound(i),
       }, String(i + 1)))),
       el('button', { class: 'nav next', disabled: idx === state.rounds.length - 1, title: T('rounds.nextTitle'), onclick: () => goRound(idx + 1) }, T('rounds.next')),
+      fp ? el('div', { class: 'seg' }, ['compact', 'floorplan'].map(v => el('button', {
+        class: viewMode === v ? 'active' : '', onclick: () => act(() => { state.ui.roundsView = v; }),
+      }, T('view.' + v)))) : null,
       el('button', { class: 'fs-btn', onclick: toggleFullscreen }, T(document.fullscreenElement ? 'rounds.exitFullscreen' : 'rounds.fullscreen')));
 
     const title = el('h2', { class: 'round-title' }, T('rounds.title', { n: idx + 1, total: state.rounds.length }),
@@ -654,7 +729,9 @@
       return el('div', { class: 'team-row' },
         el('div', { class: 'tnames', title: ids.map(name).join(' / ') },
           ids.map((id, i) => [i ? ' / ' : null,
-            isLate(id) ? el('span', { class: 'late-slot' }, T('rounds.lateSlot', { name: name(id) })) : pname(id)])),
+            isLate(id) && viewMode === 'floorplan'
+              ? el('span', Object.assign(nameAttrs(id), { class: 'late-slot nm', onclick: tapFull }), T('rounds.lateSlot', { name: name(id) }))
+              : isLate(id) ? el('span', Object.assign(nameAttrs(id), { class: 'nm', onclick: tapFull }), name(id)) : pname(id)])),
         round.status === 'confirmed' ? scoreInput(m, key, label) : null);
     };
 
@@ -677,18 +754,30 @@
     }
     const msg = notice && state.ui.tab === 'rounds' ? el('div', { class: 'notice ' + notice.kind }, notice.text) : null;
 
-    const cards = el('div', { class: 'courts' + (round.status === 'draft' ? ' draft' : '') }, round.matches.map(m => {
+    const uname = u => u.members.map(name).join(' / ');
+    const lateButtons = (m, short) => (m.pending && editable ? el('div', { class: 'late-actions' }, unitsWith(m.late).map(u => [
+      el('button', { onclick: () => act(() => setStatus(u.members, 'present')) }, short ? T('rounds.present') : T('rounds.arrived', { name: uname(u) })),
+      el('button', { class: 'danger', onclick: () => act(() => setStatus(u.members, 'absent')) }, short ? T('rounds.absentBtn') : T('rounds.lateAbsent', { name: uname(u) })),
+    ])) : null);
+    // Floorplan: every court on its grid position; pending court striped; courts without a match grey "Unused".
+    const byCourt = new Map(round.matches.map(m => [m.court, m]));
+    const floorCards = () => floorGrid(fp, n => {
+      const m = byCourt.get(n);
+      if (!m) return el('div', { class: 'fcourt unused' }, el('div', { class: 'fcourt-head' }, T('court.n', { n })), el('div', { class: 'fcourt-unused' }, T('floor.unused')));
+      const g = gm.get(m.groupId) || { name: '', color: null };
+      return el('div', { class: 'fcourt court' + (m.pending ? ' pending' : ''), style: gStyle(g.color) },
+        el('div', { class: 'fcourt-head' }, T('rounds.court', { n, group: g.name })),
+        team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
+        lateButtons(m, true));
+    }, 'rounds-floor' + (round.status === 'draft' ? ' draft' : ''));
+    const cards = viewMode === 'floorplan' ? floorCards() : el('div', { class: 'courts' + (round.status === 'draft' ? ' draft' : '') }, round.matches.map(m => {
       const g = gm.get(m.groupId) || { name: '', color: null };
       const lateUnits = m.pending ? unitsWith(m.late) : [];
-      const uname = u => u.members.map(name).join(' / ');
       return el('div', { class: 'court' + (m.pending ? ' pending' : ''), style: gStyle(g.color) },
         el('div', { class: 'court-head' }, T('rounds.court', { n: m.court, group: g.name })),
         m.pending ? el('div', { class: 'waiting' }, T('rounds.waitingFor', { names: lateUnits.map(uname).join(', ') })) : null,
         team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
-        m.pending && editable ? el('div', { class: 'late-actions' }, lateUnits.map(u => [
-          el('button', { onclick: () => act(() => setStatus(u.members, 'present')) }, T('rounds.arrived', { name: uname(u) })),
-          el('button', { class: 'danger', onclick: () => act(() => setStatus(u.members, 'absent')) }, T('rounds.lateAbsent', { name: uname(u) })),
-        ])) : null);
+        lateButtons(m, false));
     }));
     const lapsed = (round.lapsed || []).map(c => el('p', { class: 'muted' }, T('rounds.lapsed', { n: c })));
 
@@ -862,7 +951,35 @@
     const view = document.getElementById('view');
     const fn = views[state.ui.tab];
     view.replaceChildren(fn ? fn() : el('p', {}, ''));
+    requestAnimationFrame(() => fitNames(view));
   }
+
+  // Shrink a name line (down to 65%) until it fits; still too wide → names in short form.
+  const nameText = (n, which) => (n.classList.contains('late-slot') ? T('rounds.lateSlot', { name: n.dataset[which] }) : n.dataset[which]);
+  function fitNames(root) {
+    root.querySelectorAll('.tnames').forEach(box => {
+      box.style.fontSize = '';
+      const names = box.querySelectorAll('.nm[data-short]');
+      names.forEach(n => { delete n.dataset.fitted; n.textContent = nameText(n, 'full'); });
+      if (box.scrollWidth <= box.clientWidth) return;
+      const base = parseFloat(getComputedStyle(box).fontSize);
+      for (let size = base - 1; size >= base * 0.65 && box.scrollWidth > box.clientWidth; size--) box.style.fontSize = size + 'px';
+      if (box.scrollWidth > box.clientWidth) {
+        names.forEach(n => { n.dataset.fitted = '1'; n.textContent = nameText(n, 'short'); });
+      }
+    });
+  }
+  // Tap a shortened name to toggle the full name.
+  function tapFull(e) {
+    const n = e.currentTarget;
+    if (!n.dataset.fitted) return;
+    n.textContent = n.textContent === nameText(n, 'full') ? nameText(n, 'short') : nameText(n, 'full');
+  }
+  let fitTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(() => fitNames(document.getElementById('view')), 100);
+  });
 
   render();
 })();

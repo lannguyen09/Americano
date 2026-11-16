@@ -251,3 +251,38 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 .fs-table tr.top1 { background: var(--gold); }
 .fs-table tr.top2 { background: var(--silver); }
 .fs-table tr.top3 { background: var(--bronze); }
+
+/* ---------- Floorplan (M9) ---------- */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 6px 12px; }
+.seg button.active { background: var(--brand); color: var(--brand-contrast); }
+.floor { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.floor-grid { display: grid; gap: 12px; }
+.fcourt {
+  position: relative; display: flex; flex-direction: column; justify-content: center; min-width: 0;
+  background: var(--g, var(--surface)); color: var(--g-text, var(--text));
+  border: 2px solid var(--g, var(--line)); border-radius: 12px; overflow: hidden; container-type: inline-size;
+}
+.fcourt.edge { box-shadow: inset 0 0 0 4px var(--edge); }
+.fcourt.unused { background: var(--surface); color: var(--muted); border: 2px dashed var(--line); filter: grayscale(1); }
+.fcourt-head { font-weight: 700; padding: 6px 12px; font-size: clamp(14px, 5cqi, 26px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fcourt-unused { padding: 6px 12px 12px; font-size: clamp(14px, 5cqi, 24px); }
+.fcourt .vs::before, .fcourt .vs::after { border-color: currentColor; opacity: .4; }
+.fcourt .tnames { font-size: clamp(14px, 6cqi, 36px); }
+.fcourt .late-slot { color: inherit; opacity: .75; }
+.fcourt .late-actions { padding: 0 12px 10px; }
+.fcourt.pending {
+  background: repeating-linear-gradient(135deg, var(--g) 0 14px, color-mix(in srgb, var(--g) 70%, #fff) 14px 28px);
+  border-style: dashed;
+}
+.rounds-floor.draft .fcourt:not(.unused) { border-style: dashed; }
+.court-badge {
+  position: absolute; top: 6px; right: 6px; font-size: 11px; font-weight: 800; letter-spacing: .05em;
+  padding: 1px 6px; border-radius: 4px; background: var(--surface); color: var(--text); border: 1px solid var(--line);
+}
+.setup-floor { max-width: 560px; }
+.fcourt.setup { min-height: 72px; align-items: flex-start; gap: 2px; padding: 8px 12px; text-align: left; cursor: pointer; font: inherit; }
+.fcourt.setup span { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.fcourt.setup:disabled { cursor: default; }
+.reception { align-self: center; font-weight: 700; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; font-size: 14px; }
+.nm[data-fitted] { cursor: help; }

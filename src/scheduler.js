@@ -101,6 +101,23 @@
     return { counts, assignment, idle: sorted.slice(pos), errors: [...new Set(errors)] };
   }
 
+  // Manual allocation (courts clicked on the floorplan). courtMap: {courtNo: groupId}.
+  // Same result shape as allocateCourts. Courts beyond floor(size/k) stay unused in the rounds.
+  function allocateManual(groups, courtMap, mode) {
+    const k = unitsPerCourt(mode);
+    const unitName = t(mode === 'teams' ? 'unit.teams' : 'unit.players');
+    const errors = [], counts = {}, assignment = {};
+    const all = Object.keys(courtMap || {}).map(Number).sort((a, b) => a - b);
+    for (const g of groups) {
+      assignment[g.id] = all.filter(c => courtMap[c] === g.id);
+      counts[g.id] = assignment[g.id].length;
+      if (g.size < k) errors.push(t('alloc.errTooSmall', { name: g.name, k, unit: unitName, size: g.size }));
+      else if (!counts[g.id]) errors.push(t('alloc.errZero', { name: g.name }));
+    }
+    const ids = new Set(groups.map(g => g.id));
+    return { counts, assignment, idle: all.filter(c => !ids.has(courtMap[c])), errors };
+  }
+
   // Playing / resting units per round for a group.
   function groupLoad(size, courts, mode) {
     const k = unitsPerCourt(mode);
@@ -601,7 +618,7 @@
 
   const api = {
     W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
-    makeRng, unitsPerCourt, allocateCourts, groupLoad,
+    makeRng, unitsPerCourt, allocateCourts, allocateManual, groupLoad,
     scheduleRounds, scheduleState, unitsForGroup, scheduledUnits, isScheduled, confirmedPrefix,
     editableIndex, swapPlayers, confirmRound, restartTournament, resolveLate, undecidedLate,
     fairnessReport, formatFairness,

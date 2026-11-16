@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Padel Americano</title>
+<title>PadelNext Americano</title>
 <style>/* Neutral generic theme. A club theme (theme/<club>.json) overrides these at build time.
    These definitions are the only colour literals allowed in style.css. */
 :root {
@@ -257,8 +257,53 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 .fs-table tr.top1 { background: var(--gold); }
 .fs-table tr.top2 { background: var(--silver); }
 .fs-table tr.top3 { background: var(--bronze); }
+
+/* ---------- Floorplan (M9) ---------- */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 6px 12px; }
+.seg button.active { background: var(--brand); color: var(--brand-contrast); }
+.floor { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.floor-grid { display: grid; gap: 12px; }
+.fcourt {
+  position: relative; display: flex; flex-direction: column; justify-content: center; min-width: 0;
+  background: var(--g, var(--surface)); color: var(--g-text, var(--text));
+  border: 2px solid var(--g, var(--line)); border-radius: 12px; overflow: hidden; container-type: inline-size;
+}
+.fcourt.edge { box-shadow: inset 0 0 0 4px var(--edge); }
+.fcourt.unused { background: var(--surface); color: var(--muted); border: 2px dashed var(--line); filter: grayscale(1); }
+.fcourt-head { font-weight: 700; padding: 6px 12px; font-size: clamp(14px, 5cqi, 26px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fcourt-unused { padding: 6px 12px 12px; font-size: clamp(14px, 5cqi, 24px); }
+.fcourt .vs::before, .fcourt .vs::after { border-color: currentColor; opacity: .4; }
+.fcourt .tnames { font-size: clamp(14px, 6cqi, 36px); }
+.fcourt .late-slot { color: inherit; opacity: .75; }
+.fcourt .late-actions { padding: 0 12px 10px; }
+.fcourt.pending {
+  background: repeating-linear-gradient(135deg, var(--g) 0 14px, color-mix(in srgb, var(--g) 70%, #fff) 14px 28px);
+  border-style: dashed;
+}
+.rounds-floor.draft .fcourt:not(.unused) { border-style: dashed; }
+.court-badge {
+  position: absolute; top: 6px; right: 6px; font-size: 11px; font-weight: 800; letter-spacing: .05em;
+  padding: 1px 6px; border-radius: 4px; background: var(--surface); color: var(--text); border: 1px solid var(--line);
+}
+.setup-floor { max-width: 560px; }
+.fcourt.setup { min-height: 72px; align-items: flex-start; gap: 2px; padding: 8px 12px; text-align: left; cursor: pointer; font: inherit; }
+.fcourt.setup span { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.fcourt.setup:disabled { cursor: default; }
+.reception { align-self: center; font-weight: 700; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; font-size: 14px; }
+.nm[data-fitted] { cursor: help; }
 </style>
-<style></style>
+<style>:root {
+  --brand: #0B1F5C;
+  --brand-contrast: #FFFFFF;
+  --brand-soft: #E8ECF7;
+  --text: #0B1F5C;
+  --accent: #F7E84B;
+  --group-1: #1F3FBF;
+  --group-2: #E0489B;
+  --group-3: #E5561E;
+  --group-4: #3FD0B8;
+}</style>
 </head>
 <body>
 <header class="topbar">
@@ -266,7 +311,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   <nav id="tabs"></nav>
 </header>
 <main id="view"></main>
-<script>window.THEME = {"name":"generic","clubName":"","title":"","logos":{}};</script>
+<script>window.THEME = {"name":"padelnext","clubName":"PadelNext","title":"PadelNext Americano","logos":{"wordmark":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='32' viewBox='0 0 120 32'%3E%3Crect width='120' height='32' rx='6' fill='%230B1F5C'/%3E%3Ctext x='60' y='21' font-family='sans-serif' font-size='13' font-weight='700' fill='%23FFFFFF' text-anchor='middle'%3EWORDMARK%3C/text%3E%3C/svg%3E","ring":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%23F7E84B' stroke-width='5'/%3E%3C/svg%3E"},"floorplan":{"rows":3,"cols":3,"numbering":"bottom-left-rows","reception":"bottom","tags":{"1":{"edge":"#F4A9CB"},"2":{"badge":"WPT"},"5":{"badge":"WPT"},"6":{"edge":"#F4A9CB"},"7":{"edge":"#F4A9CB"},"8":{"badge":"WPT"}}}};</script>
 <script>/* Padel Americano — all UI text. One table per language; t(key, vars) fills {placeholders}. */
 (function (root) {
   'use strict';
@@ -388,6 +433,14 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
       'alloc.auto': 'auto',
       'alloc.unused': 'Unused courts: {list}',
       'alloc.hint': 'Courts are assigned automatically by group size. Type a number to override.',
+      'alloc.floorHint': 'Click a court to give it to the next group (click again to cycle; last click = not used).',
+      'alloc.manual': 'Courts assigned by hand on the floorplan.',
+      'alloc.autoBtn': 'Back to automatic',
+      'floor.reception': 'Reception',
+      'floor.unused': 'Unused',
+      'floor.notAtClub': '—',
+      'view.compact': 'Compact',
+      'view.floorplan': 'Floorplan',
 
       // Court allocation errors (scheduler.js)
       'alloc.errTooSmall': 'Group "{name}" needs at least {k} {unit} (has {size}).',
@@ -432,6 +485,8 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
       'rounds.nobodyRests': 'Nobody rests this round.',
       'rounds.waitingFor': 'Waiting for {names}',
       'rounds.lateSlot': 'Late: {name}',
+      'rounds.present': 'Present',
+      'rounds.absentBtn': 'Absent',
       'rounds.arrived': '{name} present',
       'rounds.lateAbsent': '{name} absent',
       'rounds.lateLabel': 'Late',
@@ -603,6 +658,23 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
       pos += counts[g.id];
     }
     return { counts, assignment, idle: sorted.slice(pos), errors: [...new Set(errors)] };
+  }
+
+  // Manual allocation (courts clicked on the floorplan). courtMap: {courtNo: groupId}.
+  // Same result shape as allocateCourts. Courts beyond floor(size/k) stay unused in the rounds.
+  function allocateManual(groups, courtMap, mode) {
+    const k = unitsPerCourt(mode);
+    const unitName = t(mode === 'teams' ? 'unit.teams' : 'unit.players');
+    const errors = [], counts = {}, assignment = {};
+    const all = Object.keys(courtMap || {}).map(Number).sort((a, b) => a - b);
+    for (const g of groups) {
+      assignment[g.id] = all.filter(c => courtMap[c] === g.id);
+      counts[g.id] = assignment[g.id].length;
+      if (g.size < k) errors.push(t('alloc.errTooSmall', { name: g.name, k, unit: unitName, size: g.size }));
+      else if (!counts[g.id]) errors.push(t('alloc.errZero', { name: g.name }));
+    }
+    const ids = new Set(groups.map(g => g.id));
+    return { counts, assignment, idle: all.filter(c => !ids.has(courtMap[c])), errors };
   }
 
   // Playing / resting units per round for a group.
@@ -1105,7 +1177,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
 
   const api = {
     W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
-    makeRng, unitsPerCourt, allocateCourts, groupLoad,
+    makeRng, unitsPerCourt, allocateCourts, allocateManual, groupLoad,
     scheduleRounds, scheduleState, unitsForGroup, scheduledUnits, isScheduled, confirmedPrefix,
     editableIndex, swapPlayers, confirmRound, restartTournament, resolveLate, undecidedLate,
     fairnessReport, formatFairness,
@@ -1217,7 +1289,16 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     return rows.map(r => [r[nameCol] || '', levelCol >= 0 ? r[levelCol] || '' : ''].join('\t').replace(/\t$/, '')).join('\n');
   }
 
-  const api = { norm, key, capitalise, splitTeam, uniqueName, parseLines, importToText };
+  // Short form when a name does not fit: last part as initial ("Jan de Vries" → "Jan de V."; "Jan (2)" stays).
+  function shortName(name) {
+    const w = norm(name).split(' ');
+    const suffix = w.length > 1 && /^\(\d+\)$/.test(w[w.length - 1]) ? ' ' + w.pop() : '';
+    if (w.length < 2) return w.join(' ') + suffix;
+    const last = w.pop();
+    return `${w.join(' ')} ${last.charAt(0)}.${suffix}`;
+  }
+
+  const api = { norm, key, capitalise, splitTeam, uniqueName, parseLines, importToText, shortName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Names = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -1311,8 +1392,9 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
   function defaultState() {
     return {
       version: 1, mode: 'americano', seed: 1, numRounds: 6, started: false, nextId: 0,
-      groups: [], players: [], teams: [], clubCourts: 12, courts: [], courtAssignment: {}, rounds: [],
-      ui: { tab: 'setup', roundIdx: 0, rankFilter: 'group' },
+      groups: [], players: [], teams: [], clubCourts: THEME.floorplan ? THEME.floorplan.rows * THEME.floorplan.cols : 12,
+      courts: [], courtMap: null, courtAssignment: {}, rounds: [],
+      ui: { tab: 'setup', roundIdx: 0, rankFilter: 'group', roundsView: 'floorplan' },
     };
   }
 
@@ -1417,10 +1499,52 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     state.rounds = S.scheduleState(state);
     state.ui.roundIdx = Math.max(0, Math.min(state.ui.roundIdx, state.rounds.length - 1));
   }
+  // courtMap ({courtNo: groupId}, set by clicking the floorplan) overrides the automatic allocation.
   function allocation() {
-    return S.allocateCourts(state.groups.map(g => ({
+    const groups = state.groups.map(g => ({
       id: g.id, name: g.name, size: S.scheduledUnits(state, g.id).length, override: g.courtsOverride,
-    })), state.courts, state.mode);
+    }));
+    return state.courtMap ? S.allocateManual(groups, state.courtMap, state.mode) : S.allocateCourts(groups, state.courts, state.mode);
+  }
+
+  // ---------- Floorplan (theme; presentation only) ----------
+  // Null when the theme has none or the club has more courts than grid cells → Compact only.
+  function floorplan() {
+    const fp = THEME.floorplan;
+    return fp && (state.clubCourts || 0) <= fp.rows * fp.cols ? fp : null;
+  }
+  // Numbering from bottom-left, row by row upward: court 1 bottom-left, rows*cols top-right.
+  function courtPos(n, fp) {
+    return { row: fp.rows - Math.floor((n - 1) / fp.cols), col: ((n - 1) % fp.cols) + 1 };
+  }
+  // Grid of all cells; cell(n) builds the card, placed on its position, with the theme's court tags.
+  function floorGrid(fp, cell, cls) {
+    const nums = Array.from({ length: fp.rows * fp.cols }, (_, i) => i + 1);
+    return el('div', { class: 'floor ' + (cls || '') },
+      el('div', { class: 'floor-grid', style: `grid-template-columns:repeat(${fp.cols},minmax(0,1fr))` }, nums.map(n => {
+        const card = cell(n);
+        const pos = courtPos(n, fp);
+        const tag = (fp.tags || {})[n] || {};
+        card.style.gridRow = pos.row;
+        card.style.gridColumn = pos.col;
+        if (tag.edge) { card.classList.add('edge'); card.style.setProperty('--edge', tag.edge); }
+        if (tag.badge) card.append(el('span', { class: 'court-badge' }, tag.badge));
+        return card;
+      })),
+      fp.reception === 'bottom' || !fp.reception ? el('div', { class: 'reception' }, '▲ ' + T('floor.reception')) : null);
+  }
+  // Click on the floorplan in Setup: cycle the court through the groups, then "not used".
+  function clickCourt(c) {
+    if (courtsLocked()) return;
+    if (!state.courtMap) {
+      state.courtMap = {};
+      for (const [gid, cs] of Object.entries(allocation().assignment)) cs.forEach(x => { state.courtMap[x] = gid; });
+    }
+    const order = [null].concat(state.groups.map(g => g.id));
+    const next = order[(order.indexOf(state.courtMap[c] || null) + 1) % order.length];
+    if (next) state.courtMap[c] = next; else delete state.courtMap[c];
+    state.courts = Object.keys(state.courtMap).map(Number).sort((a, b) => a - b);
+    regenerate();
   }
   // Units not checked in (status 'pending'): excluded from the schedule.
   const notCheckedIn = () => state.groups.reduce((n, g) =>
@@ -1455,6 +1579,10 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     state.groups = state.groups.filter(g => g.id !== gid);
     state.players = state.players.filter(p => p.groupId !== gid);
     state.teams = state.teams.filter(t => t.groupId !== gid);
+    if (state.courtMap) {
+      for (const c of Object.keys(state.courtMap)) if (state.courtMap[c] === gid) delete state.courtMap[c];
+      state.courts = Object.keys(state.courtMap).map(Number).sort((a, b) => a - b);
+    }
     regenerate();
   }
   function renameGroup(gid, name) {
@@ -1561,9 +1689,10 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     n = Math.max(1, Math.min(40, Math.floor(n) || 1));
     state.clubCourts = n;
     state.courts = state.courts.filter(c => c <= n);
+    if (state.courtMap) for (const c of Object.keys(state.courtMap)) if (+c > n) delete state.courtMap[c];
     regenerate();
   }
-  function setCourts(list) { state.courts = list.slice().sort((a, b) => a - b); regenerate(); }
+  function setCourts(list) { state.courtMap = null; state.courts = list.slice().sort((a, b) => a - b); regenerate(); }
   function toggleCourt(c) {
     setCourts(state.courts.includes(c) ? state.courts.filter(x => x !== c) : state.courts.concat(c));
   }
@@ -1699,7 +1828,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
         el('td', { class: 'num' }, String(size)),
         el('td', { class: 'num' }, String(courts.length)),
         locked ? null : el('td', {}, el('input', {
-          type: 'number', min: 0, class: 'small', value: g.courtsOverride, placeholder: T('alloc.auto'),
+          type: 'number', min: 0, class: 'small', value: g.courtsOverride, placeholder: T('alloc.auto'), disabled: !!state.courtMap,
           onchange: e => act(() => setOverride(g.id, e.target.value)),
         })),
         el('td', {}, courts.length ? courts.join(', ') : '—'),
@@ -1716,6 +1845,26 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
         el('tbody', {}, rows)),
       idle.length ? el('p', { class: 'muted' }, T('alloc.unused', { list: idle.join(', ') })) : null,
       !locked ? el('p', { class: 'muted' }, T('alloc.hint')) : null);
+  }
+
+  // Setup floorplan: courts coloured by group; click to assign (default: contiguous automatic allocation).
+  function setupFloor(fp, locked) {
+    const assign = locked ? state.courtAssignment : allocation().assignment;
+    const groupOf = {};
+    state.groups.forEach(g => (assign[g.id] || []).forEach(c => { groupOf[c] = g; }));
+    return el('div', {},
+      floorGrid(fp, n => {
+        const g = groupOf[n];
+        const atClub = n <= state.clubCourts;
+        return el('button', {
+          class: 'fcourt setup' + (g ? '' : ' unused'), style: g ? gStyle(g.color) : null,
+          disabled: locked || !atClub, onclick: () => act(() => clickCourt(n)),
+        }, el('strong', {}, T('court.n', { n })),
+        el('span', {}, !atClub ? T('floor.notAtClub') : g ? g.name : T('floor.unused')));
+      }, 'setup-floor'),
+      locked ? null : el('p', { class: 'muted' }, T('alloc.floorHint')),
+      !locked && state.courtMap ? el('p', { class: 'row' }, el('span', { class: 'muted' }, T('alloc.manual')),
+        el('button', { class: 'link', onclick: () => act(() => setCourts(state.courts)) }, T('alloc.autoBtn'))) : null);
   }
 
   views.setup = () => {
@@ -1760,7 +1909,7 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
             onchange: e => act(() => setClubCourts(+e.target.value)) })),
         locked ? null : el('button', { class: 'link', onclick: () => act(() => setCourts(courtNos)) }, T('setup.selectAll')),
         locked ? null : el('button', { class: 'link', onclick: () => act(() => setCourts([])) }, T('setup.selectNone'))),
-      el('div', { class: 'court-toggles' }, courtNos.map(c => el('button', {
+      floorplan() ? setupFloor(floorplan(), locked) : el('div', { class: 'court-toggles' }, courtNos.map(c => el('button', {
         class: 'court-btn' + (state.courts.includes(c) ? ' on' : ''), disabled: locked,
         title: T('court.n', { n: c }), onclick: () => act(() => toggleCourt(c)),
       }, String(c)))),
@@ -1917,9 +2066,13 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     const editIdx = S.editableIndex(state.rounds);
     const editable = idx === editIdx && round.status === 'draft';
     const isSel = id => selected != null && sameUnit(selected, id);
+    // Names fit the card (see fitNames): shrink first, then last part as initial; full name on hover/tap.
+    const nameAttrs = id => ({ title: name(id), 'data-full': name(id), 'data-short': N.shortName(name(id)) });
     const pname = (id, cls) => (editable
-      ? el('button', { class: `pname ${cls || ''}${isSel(id) ? ' sel' : ''}`, onclick: () => pick(id) }, name(id))
-      : el('span', { class: cls || '' }, name(id)));
+      ? el('button', Object.assign(nameAttrs(id), { class: `pname nm ${cls || ''}${isSel(id) ? ' sel' : ''}`, onclick: () => pick(id) }), name(id))
+      : el('span', Object.assign(nameAttrs(id), { class: 'nm ' + (cls || ''), onclick: tapFull }), name(id)));
+    const fp = floorplan();
+    const viewMode = fp && state.ui.roundsView !== 'compact' ? 'floorplan' : 'compact';
 
     const bar = el('div', { class: 'round-bar' },
       el('button', { class: 'link back', onclick: () => act(() => { state.ui.tab = 'setup'; }) }, T('rounds.back')),
@@ -1929,6 +2082,9 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
         onclick: () => goRound(i),
       }, String(i + 1)))),
       el('button', { class: 'nav next', disabled: idx === state.rounds.length - 1, title: T('rounds.nextTitle'), onclick: () => goRound(idx + 1) }, T('rounds.next')),
+      fp ? el('div', { class: 'seg' }, ['compact', 'floorplan'].map(v => el('button', {
+        class: viewMode === v ? 'active' : '', onclick: () => act(() => { state.ui.roundsView = v; }),
+      }, T('view.' + v)))) : null,
       el('button', { class: 'fs-btn', onclick: toggleFullscreen }, T(document.fullscreenElement ? 'rounds.exitFullscreen' : 'rounds.fullscreen')));
 
     const title = el('h2', { class: 'round-title' }, T('rounds.title', { n: idx + 1, total: state.rounds.length }),
@@ -1941,7 +2097,9 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
       return el('div', { class: 'team-row' },
         el('div', { class: 'tnames', title: ids.map(name).join(' / ') },
           ids.map((id, i) => [i ? ' / ' : null,
-            isLate(id) ? el('span', { class: 'late-slot' }, T('rounds.lateSlot', { name: name(id) })) : pname(id)])),
+            isLate(id) && viewMode === 'floorplan'
+              ? el('span', Object.assign(nameAttrs(id), { class: 'late-slot nm', onclick: tapFull }), T('rounds.lateSlot', { name: name(id) }))
+              : isLate(id) ? el('span', Object.assign(nameAttrs(id), { class: 'nm', onclick: tapFull }), name(id)) : pname(id)])),
         round.status === 'confirmed' ? scoreInput(m, key, label) : null);
     };
 
@@ -1964,18 +2122,30 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     }
     const msg = notice && state.ui.tab === 'rounds' ? el('div', { class: 'notice ' + notice.kind }, notice.text) : null;
 
-    const cards = el('div', { class: 'courts' + (round.status === 'draft' ? ' draft' : '') }, round.matches.map(m => {
+    const uname = u => u.members.map(name).join(' / ');
+    const lateButtons = (m, short) => (m.pending && editable ? el('div', { class: 'late-actions' }, unitsWith(m.late).map(u => [
+      el('button', { onclick: () => act(() => setStatus(u.members, 'present')) }, short ? T('rounds.present') : T('rounds.arrived', { name: uname(u) })),
+      el('button', { class: 'danger', onclick: () => act(() => setStatus(u.members, 'absent')) }, short ? T('rounds.absentBtn') : T('rounds.lateAbsent', { name: uname(u) })),
+    ])) : null);
+    // Floorplan: every court on its grid position; pending court striped; courts without a match grey "Unused".
+    const byCourt = new Map(round.matches.map(m => [m.court, m]));
+    const floorCards = () => floorGrid(fp, n => {
+      const m = byCourt.get(n);
+      if (!m) return el('div', { class: 'fcourt unused' }, el('div', { class: 'fcourt-head' }, T('court.n', { n })), el('div', { class: 'fcourt-unused' }, T('floor.unused')));
+      const g = gm.get(m.groupId) || { name: '', color: null };
+      return el('div', { class: 'fcourt court' + (m.pending ? ' pending' : ''), style: gStyle(g.color) },
+        el('div', { class: 'fcourt-head' }, T('rounds.court', { n, group: g.name })),
+        team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
+        lateButtons(m, true));
+    }, 'rounds-floor' + (round.status === 'draft' ? ' draft' : ''));
+    const cards = viewMode === 'floorplan' ? floorCards() : el('div', { class: 'courts' + (round.status === 'draft' ? ' draft' : '') }, round.matches.map(m => {
       const g = gm.get(m.groupId) || { name: '', color: null };
       const lateUnits = m.pending ? unitsWith(m.late) : [];
-      const uname = u => u.members.map(name).join(' / ');
       return el('div', { class: 'court' + (m.pending ? ' pending' : ''), style: gStyle(g.color) },
         el('div', { class: 'court-head' }, T('rounds.court', { n: m.court, group: g.name })),
         m.pending ? el('div', { class: 'waiting' }, T('rounds.waitingFor', { names: lateUnits.map(uname).join(', ') })) : null,
         team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
-        m.pending && editable ? el('div', { class: 'late-actions' }, lateUnits.map(u => [
-          el('button', { onclick: () => act(() => setStatus(u.members, 'present')) }, T('rounds.arrived', { name: uname(u) })),
-          el('button', { class: 'danger', onclick: () => act(() => setStatus(u.members, 'absent')) }, T('rounds.lateAbsent', { name: uname(u) })),
-        ])) : null);
+        lateButtons(m, false));
     }));
     const lapsed = (round.lapsed || []).map(c => el('p', { class: 'muted' }, T('rounds.lapsed', { n: c })));
 
@@ -2149,7 +2319,35 @@ table.fs-table { width: 100%; border-collapse: collapse; table-layout: auto; fon
     const view = document.getElementById('view');
     const fn = views[state.ui.tab];
     view.replaceChildren(fn ? fn() : el('p', {}, ''));
+    requestAnimationFrame(() => fitNames(view));
   }
+
+  // Shrink a name line (down to 65%) until it fits; still too wide → names in short form.
+  const nameText = (n, which) => (n.classList.contains('late-slot') ? T('rounds.lateSlot', { name: n.dataset[which] }) : n.dataset[which]);
+  function fitNames(root) {
+    root.querySelectorAll('.tnames').forEach(box => {
+      box.style.fontSize = '';
+      const names = box.querySelectorAll('.nm[data-short]');
+      names.forEach(n => { delete n.dataset.fitted; n.textContent = nameText(n, 'full'); });
+      if (box.scrollWidth <= box.clientWidth) return;
+      const base = parseFloat(getComputedStyle(box).fontSize);
+      for (let size = base - 1; size >= base * 0.65 && box.scrollWidth > box.clientWidth; size--) box.style.fontSize = size + 'px';
+      if (box.scrollWidth > box.clientWidth) {
+        names.forEach(n => { n.dataset.fitted = '1'; n.textContent = nameText(n, 'short'); });
+      }
+    });
+  }
+  // Tap a shortened name to toggle the full name.
+  function tapFull(e) {
+    const n = e.currentTarget;
+    if (!n.dataset.fitted) return;
+    n.textContent = n.textContent === nameText(n, 'full') ? nameText(n, 'short') : nameText(n, 'full');
+  }
+  let fitTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(() => fitNames(document.getElementById('view')), 100);
+  });
 
   render();
 })();

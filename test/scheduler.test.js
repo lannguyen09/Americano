@@ -315,6 +315,15 @@ test('restart keeps players and settings, deletes rounds and scores', () => {
   assert.strictEqual(st.rounds.length, 4, 'input not mutated');
 });
 
+test('allocate manual (floorplan clicks): courts per group from the map, errors for a group without courts', () => {
+  const groups = [{ id: 'a', name: 'Advanced', size: 21 }, { id: 'b', name: 'Beginner', size: 48 }];
+  const r = S.allocateManual(groups, { 1: 'a', 3: 'a', 2: 'b', 9: 'b' }, 'americano');
+  assert.deepStrictEqual(r.assignment, { a: [1, 3], b: [2, 9] });
+  assert.deepStrictEqual(r.errors, []);
+  const e = S.allocateManual(groups, { 1: 'a' }, 'americano');
+  assert.ok(e.errors.some(x => x.includes('Beginner')));
+});
+
 // ---------- Late players (SPEC_v2 §D) ----------
 // n units in group 'A'; the last `late` units are Late (teams: first member only).
 function lateState({ n, late, courts, numRounds = 6, mode = 'americano' }) {
