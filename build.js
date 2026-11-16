@@ -99,7 +99,9 @@ if (themeName) {
   } else console.warn('Warning: no PNG ring logo; icons use a drawn ring in the theme colours');
   const icons = {};
   for (const size of [192, 512]) {
-    icons[size] = png.encode(ring ? png.iconFromImage(ring, size, brand) : png.ringIcon(size, brand, accent));
+    // Logo with an opaque background (corner pixel): use that colour around it, else the brand colour.
+    const corner = ring && ring.data[3] === 255 ? '#' + Array.from(ring.data.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('') : brand;
+    icons[size] = png.encode(ring ? png.iconFromImage(ring, size, corner) : png.ringIcon(size, brand, accent));
     fs.writeFileSync(path.join(site, `icon-${size}.png`), icons[size]);
   }
 
