@@ -524,6 +524,17 @@
     return { rounds: scheduleState(Object.assign({}, state, { rounds })) };
   }
 
+  // Unlock the last confirmed round (admin): it becomes the editable draft again (lineup and scores kept);
+  // later Suggested rounds are regenerated. Returns {error} or {rounds}.
+  function unlockRound(state, idx) {
+    const rounds = (state.rounds || []).slice();
+    if (!rounds[idx] || rounds[idx].status !== 'confirmed' || idx !== confirmedPrefix(rounds).length - 1) {
+      return { error: t('edit.unlockOnlyLast') };
+    }
+    rounds[idx] = Object.assign({}, rounds[idx], { status: 'draft' });
+    return { rounds: scheduleState(Object.assign({}, state, { rounds }), null, idx + 1) };
+  }
+
   // Resolve late player(s) ids (a player, or both members of a late team) in a draft round.
   // 'present': off the pending list (court plays normally once nobody is late) or, if not on a court, resting.
   // 'absent': a pending court lapses — its present players rest (rest credit), other undecided late players
@@ -627,7 +638,7 @@
     W_PARTNER, W_OPPONENT, W_MET, W_SAME_COURT,
     makeRng, unitsPerCourt, allocateCourts, allocateManual, groupLoad, pickGroupColors,
     scheduleRounds, scheduleState, unitsForGroup, scheduledUnits, isScheduled, confirmedPrefix,
-    editableIndex, swapPlayers, confirmRound, restartTournament, resolveLate, undecidedLate,
+    editableIndex, swapPlayers, confirmRound, restartTournament, unlockRound, resolveLate, undecidedLate,
     fairnessReport, formatFairness,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

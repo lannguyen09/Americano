@@ -68,7 +68,7 @@
     nav.replaceChildren(...TABS.map(([id, label]) => el('button', {
       class: state.ui.tab === id ? 'active' : '',
       onclick: () => { notice = null; state.ui.tab = id; save(); render(); },
-    }, label)));
+    }, label)), el('button', { class: 'help-btn', title: T('help.btn'), 'aria-label': T('help.btn'), onclick: showHelp }, '?'));
   }
 
   // ---------- Helpers ----------
@@ -409,6 +409,7 @@
   // ---------- Views ----------
   const views = {};
   const section = (title, ...children) => el('section', { class: 'card' }, el('h2', {}, title), ...children);
+  const help = key => el('p', { class: 'help' }, T(key));
 
   // locked: players read-only; groupLocked: group cannot be removed. Check-in chips stay usable.
   function groupCard(g, locked, groupLocked) {
@@ -550,17 +551,17 @@
       class: 'opt' + (state.mode === m ? ' active' : ''), disabled: locked && state.mode !== m,
       onclick: () => act(() => setMode(m)),
     }, el('strong', {}, label), el('span', {}, sub));
-    wrap.append(section(T('setup.mode'), el('div', { class: 'opts' },
+    wrap.append(section(T('setup.mode'), help('help.mode'), el('div', { class: 'opts' },
       modeBtn('americano', T('mode.americano'), T('mode.americanoSub')),
       modeBtn('teams', T('mode.teams'), T('mode.teamsSub')))));
 
-    wrap.append(section(T('setup.players'),
+    wrap.append(section(T('setup.players'), help('help.players'),
       el('p', { class: 'muted' }, T('setup.groupsHint')),
       el('div', { class: 'groups' }, state.groups.map(g => groupCard(g, pLocked, locked))),
       !locked && state.groups.length < 4 ? el('button', { onclick: () => act(addGroup) }, T('setup.addGroup')) : null));
 
     const courtNos = Array.from({ length: state.clubCourts || 0 }, (_, i) => i + 1);
-    wrap.append(section(T('setup.courts'),
+    wrap.append(section(T('setup.courts'), help('help.courts'),
       el('div', { class: 'row' },
         el('label', {}, T('setup.clubCourts'),
           el('input', { type: 'number', min: 1, max: 40, class: 'small', value: state.clubCourts, disabled: locked,
@@ -573,18 +574,18 @@
       }, String(c)))),
       state.groups.length ? allocationTable(locked) : null));
 
-    wrap.append(section(T('setup.rounds'),
+    wrap.append(section(T('setup.rounds'), help('help.rounds'),
       el('label', {}, T('setup.numRounds'),
         el('input', { type: 'number', min: 1, max: 50, class: 'small', value: state.numRounds, disabled: pLocked,
           onchange: e => act(() => setRounds(e.target.value)) }))));
 
     if (state.started) {
-      wrap.append(section(T('setup.start'),
+      wrap.append(section(T('setup.start'), help('help.start'),
         !nConf && errs.length ? el('ul', { class: 'errors' }, errs.map(e => el('li', {}, e))) : null,
         el('p', {}, T('setup.runningInfo', { rounds: state.rounds.length, confirmed: nConf })),
         el('button', { class: 'primary', onclick: () => act(() => { state.ui.tab = 'rounds'; }) }, T('setup.goRounds'))));
     } else {
-      wrap.append(section(T('setup.start'),
+      wrap.append(section(T('setup.start'), help('help.start'),
         errs.length ? el('ul', { class: 'errors' }, errs.map(e => el('li', {}, e))) : null,
         notCheckedIn() ? el('div', { class: 'notice warn' }, T('start.notChecked', { n: notCheckedIn(), unit: unitWord() })) : null,
         el('div', { class: 'row' },
@@ -648,9 +649,10 @@
     });
   }
   // Confirm with late players still undecided: one choice per late unit, default "Absent (match lapses)".
+  // Confirm dialog: "Confirm Round N? The lineup will be locked." plus one choice per Late player still
+  // undecided (default "Absent (match lapses)", alternative "Present").
   function confirmCurrent(idx) {
     const late = unitsWith(S.undecidedLate(state.rounds[idx]));
-    if (!late.length) return doConfirm(idx);
     const pm = playerMap();
     const dlg = el('dialog', { class: 'late-dialog' });
     const choices = late.map(u => {
@@ -661,18 +663,28 @@
       return { u, sel, row: el('label', { class: 'late-row' }, el('strong', {}, name), sel) };
     });
     const close = () => { dlg.close(); dlg.remove(); };
-    dlg.append(el('h3', {}, T('late.title', { n: idx + 1 })), choices.map(c => c.row),
-      el('div', { class: 'row' },
-        el('button', { class: 'primary', onclick: () => {
-          const picked = choices.map(c => [c.u.members, c.sel.value]);
-          close();
-          act(() => picked.forEach(([ids, v]) => setStatus(ids, v)));
-          doConfirm(idx);
-        } }, T('late.confirm', { n: idx + 1 })),
-        el('button', { onclick: close }, T('common.cancel'))));
+    const ok = el('button', { class: 'primary', onclick: () => {
+      const picked = choices.map(c => [c.u.members, c.sel.value]);
+      close();
+      if (picked.length) act(() => picked.forEach(([ids, v]) => setStatus(ids, v)));
+      doConfirm(idx);
+    } }, T('confirm.btn'));
+    dlg.append(el('h3', {}, T('confirm.round', { n: idx + 1 })),
+      choices.length ? el('p', { class: 'muted' }, T('late.title', { n: idx + 1 })) : null, choices.map(c => c.row),
+      el('div', { class: 'row' }, ok, el('button', { onclick: close }, T('common.cancel'))));
     dlg.addEventListener('cancel', () => dlg.remove());
     document.body.append(dlg);
     dlg.showModal();
+    ok.focus();
+  }
+  function unlockCurrent(idx) {
+    if (!confirm(T('confirm.unlock', { n: idx + 1 }))) return;
+    act(() => {
+      const res = S.unlockRound(state, idx);
+      if (res.error) return setNotice('error', res.error);
+      state.rounds = res.rounds;
+      selected = null;
+    });
   }
   function doConfirm(idx) {
     act(() => {
@@ -695,18 +707,39 @@
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
   }
 
+  // Score fields of the shown round, in keyboard order (court by court, team A then B). Rebuilt per render.
+  let scoreFields = [];
+  function focusField(i) {
+    const f = scoreFields[Math.max(0, Math.min(i, scoreFields.length - 1))];
+    if (f) { f.inp.focus(); f.inp.select(); }
+  }
   // Games per side: empty or a non-negative integer. Saved on every keystroke without re-render.
-  function scoreInput(m, key, label) {
-    const inp = el('input', { type: 'number', min: 0, step: 1, inputmode: 'numeric', class: 'score',
+  // Enter / Tab / → / ↓ = next field, Shift+Tab / ← / ↑ = previous; auto-advance after a complete entry.
+  function scoreInput(m, key, label, onChange) {
+    const inp = el('input', { type: 'text', inputmode: 'numeric', pattern: '[0-9]*', autocomplete: 'off', class: 'score',
       'aria-label': label, value: m[key] == null ? '' : m[key] });
+    const field = { m, key, inp };
+    scoreFields.push(field);
+    const index = () => scoreFields.indexOf(field);
     inp.addEventListener('input', () => {
       const raw = inp.value.trim();
-      const n = raw === '' ? null : Number(raw);
-      const ok = !inp.validity.badInput && (n === null || (Number.isInteger(n) && n >= 0));
+      const ok = raw === '' || /^\d{1,3}$/.test(raw);
       inp.classList.toggle('invalid', !ok);
-      m[key] = ok ? n : null;
+      m[key] = ok && raw !== '' ? Number(raw) : null;
       save();
+      if (onChange) onChange();
+      if (ok && R.autoAdvance(raw) && index() < scoreFields.length - 1) focusField(index() + 1);
     });
+    inp.addEventListener('keydown', e => {
+      const next = e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey);
+      const prev = e.key === 'ArrowUp' || e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey);
+      if (!next && !prev) return;
+      const i = index() + (next ? 1 : -1);
+      if (i < 0 || i >= scoreFields.length) { if (e.key !== 'Tab') e.preventDefault(); return; } // Tab leaves the list
+      e.preventDefault();
+      focusField(i);
+    });
+    inp.addEventListener('focus', () => inp.select());
     return inp;
   }
 
@@ -720,6 +753,8 @@
     const gm = new Map(state.groups.map(g => [g.id, g]));
     const name = id => (pm.get(id) || { name: '?' }).name;
     const label = r => T(r.status === 'confirmed' ? 'status.confirmed' : 'status.draft');
+    scoreFields = [];
+    const found = foundIds(); // Find player search → highlighted on the court cards
 
     const editIdx = S.editableIndex(state.rounds);
     const editable = idx === editIdx && round.status === 'draft';
@@ -727,8 +762,8 @@
     // Names fit the card (see fitNames): shrink first, then last part as initial; full name on hover/tap.
     const nameAttrs = id => ({ title: name(id), 'data-full': name(id), 'data-short': N.shortName(name(id)) });
     const pname = (id, cls) => (editable
-      ? el('button', Object.assign(nameAttrs(id), { class: `pname nm ${cls || ''}${isSel(id) ? ' sel' : ''}`, onclick: () => pick(id) }), name(id))
-      : el('span', Object.assign(nameAttrs(id), { class: 'nm ' + (cls || ''), onclick: tapFull }), name(id)));
+      ? el('button', Object.assign(nameAttrs(id), { class: `pname nm ${cls || ''}${isSel(id) ? ' sel' : ''}${found.has(id) ? ' found' : ''}`, onclick: () => pick(id) }), name(id))
+      : el('span', Object.assign(nameAttrs(id), { class: 'nm ' + (cls || '') + (found.has(id) ? ' found' : ''), onclick: tapFull }), name(id)));
     const fp = floorplan();
     const viewMode = fp && state.ui.roundsView !== 'compact' ? 'floorplan' : 'compact';
 
@@ -750,17 +785,24 @@
       el('span', { class: 'badge ' + round.status }, label(round)));
 
     // Scores only in confirmed rounds; names are clickable only in the current (editable) round.
+    const resultRows = new Map(); // match → {scoreA: row, scoreB: row} for the live winner highlight
     const team = (m, key, label) => {
       const ids = m[key === 'scoreA' ? 'teamA' : 'teamB'];
       const isLate = id => m.pending && m.late.includes(id);
-      return el('div', { class: 'team-row' },
+      const rows = resultRows.get(m) || resultRows.set(m, {}).get(m);
+      const refresh = () => ['scoreA', 'scoreB'].forEach(k => {
+        if (rows[k]) rows[k].className = 'team-row ' + R.resultClass(m, k);
+      });
+      const row = rows[key] = el('div', { class: 'team-row ' + R.resultClass(m, key) },
         el('div', { class: 'tnames', title: ids.map(name).join(' / ') },
           ids.map((id, i) => [i ? ' / ' : null,
             isLate(id) && viewMode === 'floorplan'
               ? el('span', Object.assign(nameAttrs(id), { class: 'late-slot nm', onclick: tapFull }), T('rounds.lateSlot', { name: name(id) }))
               : isLate(id) ? el('span', Object.assign(nameAttrs(id), { class: 'nm', onclick: tapFull }), name(id)) : pname(id)])),
-        round.status === 'confirmed' ? scoreInput(m, key, label) : null);
+        round.status === 'confirmed' ? scoreInput(m, key, label, refresh) : null);
+      return row;
     };
+
 
     let tools = null;
     if (editable) {
@@ -778,6 +820,9 @@
           el('button', { class: 'link', onclick: () => { selected = null; render(); } }, T('common.cancel'))) : null);
     } else if (round.status === 'draft') {
       tools = el('p', { class: 'muted' }, T('rounds.suggestedOnly', { n: editIdx + 1 }));
+    } else if (idx === confirmedCount() - 1) {
+      tools = el('div', { class: 'edit-tools' }, el('div', { class: 'row' },
+        el('button', { class: 'link danger', onclick: () => unlockCurrent(idx) }, T('rounds.unlock'))));
     }
     const msg = notice && state.ui.tab === 'rounds' ? el('div', { class: 'notice ' + notice.kind }, notice.text) : null;
 
@@ -814,6 +859,8 @@
         team(m, 'scoreA', T('rounds.teamA')), el('div', { class: 'vs' }, T('rounds.vs')), team(m, 'scoreB', T('rounds.teamB')),
         lateButtons(m, false));
     }));
+    const order = R.scoreOrder(round.matches).map(o => o.court + o.key);
+    scoreFields.sort((a, b) => order.indexOf(a.m.court + a.key) - order.indexOf(b.m.court + b.key));
     const lapsed = (round.lapsed || []).map(c => el('p', { class: 'muted' }, T('rounds.lapsed', { n: c })));
 
     const inGroup = (list, g) => (list || []).filter(id => (pm.get(id) || {}).groupId === g.id).sort((a, b) => name(a).localeCompare(name(b)));
@@ -835,8 +882,20 @@
   const notStarted = () => el('div', { class: 'card empty' }, T('rounds.empty'));
 
   let findQuery = '';         // Find player search text (not persisted)
+  // Players matching the Find search (case/space-insensitive); empty search → none.
+  function foundIds() {
+    const q = N.key(findQuery);
+    return new Set(q ? state.players.filter(p => N.key(p.name).includes(q)).map(p => p.id) : []);
+  }
+  // Colour dots, one per round: green played, red rested, grey absent; pale = suggested.
+  function dots(pid) {
+    return el('span', { class: 'dots' }, R.roundDots(state.rounds, pid).map((d, i) => el('span', {
+      class: `dot ${d.kind}${d.suggested ? ' suggested' : ''}`,
+      title: T('dot.' + d.kind, { n: i + 1 }) + (d.suggested ? T('dot.suggested') : ''),
+    })));
+  }
 
-  // Assignment in the round selected on the Rounds tab.
+  // Where is each player in the round selected on the Rounds tab. Click → that round, player highlighted.
   views.find = () => {
     if (!state.started || !state.rounds.length) return notStarted();
     const ci = Math.max(0, Math.min(state.ui.roundIdx, state.rounds.length - 1));
@@ -851,15 +910,17 @@
     const items = players.map(p => {
       const court = where.get(p.id);
       const w = court || T(where.has(p.id) ? 'find.resting' : 'find.absent');
-      const item = el('div', { class: 'find-item', style: gStyle((gm.get(p.groupId) || {}).color) },
+      const item = el('button', { class: 'find-item', style: gStyle((gm.get(p.groupId) || {}).color),
+        onclick: () => act(() => { findQuery = p.name; state.ui.tab = 'rounds'; }) },
         el('span', { class: 'find-name' }, p.name),
+        dots(p.id),
         el('span', { class: 'find-where' + (court ? '' : ' off') }, w));
-      return { item, key: p.name.toLowerCase() };
+      return { item, key: N.key(p.name) };
     });
     const empty = el('p', { class: 'muted' }, T('find.noMatch'));
     // Filter in place so the search box keeps focus while typing.
     const apply = () => {
-      const q = norm(findQuery).toLowerCase();
+      const q = N.key(findQuery);
       let shown = 0;
       for (const { item, key } of items) { const ok = key.includes(q); item.hidden = !ok; shown += ok; }
       empty.hidden = shown > 0;
@@ -879,16 +940,17 @@
   function rankTable(title, color, rows) {
     const gm = new Map(state.groups.map(g => [g.id, g]));
     const diff = d => (d > 0 ? '+' + d : String(d));
-    const head = ['rank', isTeams() ? 'team' : 'name', 'group', 'played', 'rested', 'won', 'lost', 'diff', 'wdl', 'avg']
+    const head = ['rank', isTeams() ? 'team' : 'name', 'group', 'rounds', 'played', 'rested', 'won', 'lost', 'diff', 'wdl', 'avg']
       .map(k => T('rank.' + k));
     return el('section', { class: 'card rank-card', style: gStyle(color) },
       el('h2', {}, color ? el('span', { class: 'swatch' }) : null, title),
       el('table', { class: 'rank' },
-        el('thead', {}, el('tr', {}, head.map((h, i) => el('th', { class: i > 2 ? 'num' : '' }, h)))),
+        el('thead', {}, el('tr', {}, head.map((h, i) => el('th', { class: i > 3 ? 'num' : '' }, h)))),
         el('tbody', {}, rows.map(r => el('tr', {},
           el('td', { class: 'num' }, String(r.rank)),
           el('td', { class: 'rname' }, r.name),
           el('td', {}, el('span', { class: 'swatch', style: gStyle((gm.get(r.groupId) || {}).color) }), r.group),
+          el('td', {}, dots(isTeams() ? (state.teams.find(t => t.id === r.id) || { playerIds: [r.id] }).playerIds[0] : r.id)),
           el('td', { class: 'num' }, String(r.played)),
           el('td', { class: 'num' }, String(r.rested)),
           el('td', { class: 'num strong' }, String(r.won)),
@@ -981,6 +1043,46 @@
   });
   document.addEventListener('fullscreenchange', render);
 
+  // ---------- Help ----------
+  function modal(cls, ...children) {
+    const dlg = el('dialog', { class: 'late-dialog ' + cls }, ...children);
+    dlg.addEventListener('close', () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+    return dlg;
+  }
+  // "?" per screen: help for the current tab, plus the tour.
+  function showHelp() {
+    const dlg = modal('help-dialog', el('h3', {}, T('help.title') + ' — ' + T('tab.' + state.ui.tab)),
+      el('p', {}, T('help.screen.' + state.ui.tab)),
+      el('div', { class: 'row' },
+        el('button', { class: 'primary', onclick: () => dlg.close() }, T('help.close')),
+        el('button', { onclick: () => { dlg.close(); showTour(); } }, T('help.tour'))));
+  }
+  // First-run tour: 4 steps, skippable, shown once (flag in localStorage).
+  const TOUR_KEY = 'padel-americano-tour-done';
+  function showTour() {
+    let step = 1;
+    const total = 4;
+    const body = el('div');
+    const done = () => { try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) { /* ignore */ } dlg.close(); };
+    const draw = () => body.replaceChildren(
+      el('p', { class: 'muted' }, T('tour.step', { n: step, total })),
+      el('h3', {}, T('tour.title' + step)), el('p', {}, T('tour.text' + step)),
+      el('div', { class: 'row' },
+        el('button', { class: 'primary', onclick: () => { if (step < total) { step++; draw(); } else done(); } },
+          T(step < total ? 'tour.next' : 'tour.done')),
+        step < total ? el('button', { class: 'link', onclick: done }, T('tour.skip')) : null));
+    const dlg = modal('tour-dialog', body);
+    dlg.addEventListener('cancel', done);
+    draw();
+  }
+  function maybeTour() {
+    let seen = true;
+    try { seen = !!localStorage.getItem(TOUR_KEY); } catch (e) { /* storage blocked: skip the tour */ }
+    if (!seen) showTour();
+  }
+
   function render() {
     renderTabs();
     const view = document.getElementById('view');
@@ -1017,4 +1119,5 @@
   });
 
   render();
+  maybeTour();
 })();

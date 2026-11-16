@@ -123,5 +123,48 @@ test('teams mode: one row per team with both names, team games', () => {
   assert.strictEqual(rows[2].rested, 1);
 });
 
+// ---------- Round helpers (M10) ----------
+const MM = (court, a, b, sa, sb, extra = {}) => Object.assign({ court, groupId: 'g1', teamA: a, teamB: b, scoreA: sa, scoreB: sb }, extra);
+
+test('winner highlight: more games bold, other lighter, draw both bold, incomplete none', () => {
+  const m = MM(1, ['A', 'B'], ['C', 'D'], 6, 3);
+  assert.strictEqual(S.matchResult(m), 'A');
+  assert.deepStrictEqual([S.resultClass(m, 'scoreA'), S.resultClass(m, 'scoreB')], ['win', 'lose']);
+  const b = MM(1, ['A', 'B'], ['C', 'D'], 2, 6);
+  assert.deepStrictEqual([S.resultClass(b, 'scoreA'), S.resultClass(b, 'scoreB')], ['lose', 'win']);
+  const d = MM(1, ['A', 'B'], ['C', 'D'], 4, 4);
+  assert.strictEqual(S.matchResult(d), 'draw');
+  assert.deepStrictEqual([S.resultClass(d, 'scoreA'), S.resultClass(d, 'scoreB')], ['win', 'win']);
+  for (const x of [MM(1, [], [], 6, null), MM(1, [], [], null, null), MM(1, [], [], 6, 2, { pending: true })]) {
+    assert.strictEqual(S.matchResult(x), null);
+    assert.strictEqual(S.resultClass(x, 'scoreA'), '');
+  }
+});
+
+test('colour dots: played / rested / absent per round, suggested for drafts', () => {
+  const rounds = [
+    { status: 'confirmed', matches: [MM(1, ['A', 'B'], ['C', 'D'])], resting: ['E'] },
+    { status: 'confirmed', matches: [MM(1, ['A', 'E'], ['C', 'D'])], resting: ['B'] },
+    { status: 'draft', matches: [MM(1, ['B', 'E'], ['C', 'D'])], resting: [], late: ['A'] },
+  ];
+  assert.deepStrictEqual(S.roundDots(rounds, 'A').map(d => [d.kind, d.suggested]),
+    [['played', false], ['played', false], ['absent', true]]);
+  assert.deepStrictEqual(S.roundDots(rounds, 'E').map(d => d.kind), ['rested', 'played', 'played']);
+  assert.deepStrictEqual(S.roundDots(rounds, 'Z').map(d => d.kind), ['absent', 'absent', 'absent']);
+  assert.deepStrictEqual(S.roundDots([], 'A'), []);
+});
+
+test('score field order: court by court, team A then B (input order ignored)', () => {
+  const ms = [MM(5, [], []), MM(2, [], []), MM(9, [], [])];
+  assert.deepStrictEqual(S.scoreOrder(ms).map(o => o.court + o.key),
+    ['2scoreA', '2scoreB', '5scoreA', '5scoreB', '9scoreA', '9scoreB']);
+  assert.deepStrictEqual(S.scoreOrder([MM(1, [], [], null, null, { pending: true })]), []);
+});
+
+test('auto-advance: "0", 4-9 and two digits advance; 1-3 wait; invalid never', () => {
+  for (const v of ['0', '4', '6', '9', '10', '13', '21', '32']) assert.ok(S.autoAdvance(v), v);
+  for (const v of ['', '1', '2', '3', '01', '123', 'a', '6a']) assert.ok(!S.autoAdvance(v), v);
+});
+
 if (failed) { console.log(`\n${failed} test(s) failed`); process.exit(1); }
 console.log('\nAll ranking tests passed');

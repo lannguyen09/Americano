@@ -56,7 +56,37 @@
     return rows;
   }
 
-  const api = { computeRankings, hasScore };
+  // ---- Round helpers for the UI (pure) ----
+  // Match result once both scores are in: 'A' | 'B' | 'draw'; null otherwise (pending never counts).
+  function matchResult(m) {
+    if (!m || m.pending || !hasScore(m)) return null;
+    return m.scoreA > m.scoreB ? 'A' : m.scoreA < m.scoreB ? 'B' : 'draw';
+  }
+  // Winner highlight per team row: more games 'win' (bold), other 'lose' (lighter), draw both 'win'.
+  function resultClass(m, key) {
+    const r = matchResult(m);
+    if (!r) return '';
+    if (r === 'draw') return 'win';
+    return (r === 'A') === (key === 'scoreA') ? 'win' : 'lose';
+  }
+  // One dot per round for a player: kind 'played' | 'rested' | 'absent'; suggested = draft round.
+  // Late players waiting (round.late) count as absent for that round (no rest credit).
+  function roundDots(rounds, pid) {
+    return (rounds || []).map(r => {
+      const played = r.matches.some(m => m.teamA.includes(pid) || m.teamB.includes(pid));
+      const kind = played ? 'played' : r.resting.includes(pid) ? 'rested' : 'absent';
+      return { kind, suggested: r.status !== 'confirmed' };
+    });
+  }
+  // Score field order: court by court, team A then team B.
+  function scoreOrder(matches) {
+    return (matches || []).filter(m => !m.pending).slice().sort((a, b) => a.court - b.court)
+      .flatMap(m => [{ court: m.court, key: 'scoreA' }, { court: m.court, key: 'scoreB' }]);
+  }
+  // Auto-advance after a valid entry: "0", 4–9, or two digits. 1–3 wait: they may start 10–39.
+  const autoAdvance = raw => /^(0|[4-9]|[1-9]\d)$/.test(String(raw).trim());
+
+  const api = { computeRankings, hasScore, matchResult, resultClass, roundDots, scoreOrder, autoAdvance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Ranking = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -337,6 +337,23 @@ test('compact palette: distinct colours per group, deterministic per seed', () =
   assert.deepStrictEqual(pal, ['#1F3FBF', '#E0489B', '#E5561E', '#FFD700'], 'palette not mutated');
 });
 
+test('unlock round: only the last confirmed; lineup kept, later suggested rounds regenerated', () => {
+  const st = makeState({ groups: [['A', 13]], courts: 3, numRounds: 5 });
+  st.rounds = S.scheduleState(st);
+  st.rounds = S.confirmRound(st, 0).rounds;
+  st.rounds = S.confirmRound(st, 1).rounds;
+  st.rounds[1].matches[0].scoreA = 6;
+  assert.ok(S.unlockRound(st, 0).error, 'not the last confirmed');
+  assert.ok(S.unlockRound(st, 2).error, 'draft cannot be unlocked');
+  const res = S.unlockRound(st, 1);
+  assert.strictEqual(res.rounds[1].status, 'draft');
+  assert.deepStrictEqual(res.rounds[1].matches, st.rounds[1].matches, 'lineup and scores kept');
+  assert.strictEqual(res.rounds[0].status, 'confirmed');
+  assert.strictEqual(S.editableIndex(res.rounds), 1);
+  assert.strictEqual(res.rounds.length, 5);
+  checkValidity(st, res.rounds);
+});
+
 // ---------- Late players (SPEC_v2 §D) ----------
 // n units in group 'A'; the last `late` units are Late (teams: first member only).
 function lateState({ n, late, courts, numRounds = 6, mode = 'americano' }) {
