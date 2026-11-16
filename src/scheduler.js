@@ -1,6 +1,7 @@
 /* Padel Americano scheduler — pure functions, no DOM, seeded RNG only. */
 (function (root) {
   'use strict';
+  const { t } = typeof module !== 'undefined' && module.exports ? require('./strings.js') : root.Strings;
 
   // ---- Cost weights (tune here) ----
   const W_PARTNER = 1000;   // repeated partner (americano), multiplied by count²
@@ -41,14 +42,14 @@
   // Returns {counts:{id:n}, assignment:{id:[courtNo]}, idle:[courtNo], errors:[string]}
   function allocateCourts(groups, courts, mode) {
     const k = unitsPerCourt(mode);
-    const unitName = mode === 'teams' ? 'teams' : 'players';
+    const unitName = t(mode === 'teams' ? 'unit.teams' : 'unit.players');
     const errors = [];
     const counts = {};
     const sorted = courts.slice().sort((a, b) => a - b);
     const C = sorted.length;
 
     for (const g of groups) {
-      if (g.size < k) errors.push(`Group "${g.name}" needs at least ${k} ${unitName} (has ${g.size}).`);
+      if (g.size < k) errors.push(t('alloc.errTooSmall', { name: g.name, k, unit: unitName, size: g.size }));
     }
 
     const fixed = groups.filter(g => g.override != null);
@@ -56,11 +57,11 @@
     let fixedSum = 0;
     for (const g of fixed) {
       const max = Math.floor(g.size / k);
-      if (g.override > max) errors.push(`Group "${g.name}" can use at most ${max} courts.`);
+      if (g.override > max) errors.push(t('alloc.errMax', { name: g.name, max }));
       counts[g.id] = g.override;
       fixedSum += g.override;
     }
-    if (fixedSum > C) errors.push(`Court overrides use ${fixedSum} courts, but only ${C} are available.`);
+    if (fixedSum > C) errors.push(t('alloc.errOverrides', { sum: fixedSum, c: C }));
 
     const avail = Math.max(0, C - fixedSum);
     const total = auto.reduce((s, g) => s + g.size, 0);
@@ -86,9 +87,9 @@
     for (const x of info) counts[x.g.id] = x.n;
 
     const needed = groups.reduce((s, g) => s + (g.size >= k ? 1 : 0), 0);
-    if (sum + fixedSum > C || needed > C) errors.push(`Not enough courts: at least ${needed} needed, ${C} selected.`);
+    if (sum + fixedSum > C || needed > C) errors.push(t('alloc.errNotEnough', { needed, c: C }));
     for (const g of groups) {
-      if (g.size >= k && !counts[g.id]) errors.push(`Group "${g.name}" has 0 courts.`);
+      if (g.size >= k && !counts[g.id]) errors.push(t('alloc.errZero', { name: g.name }));
     }
 
     const assignment = {};
@@ -421,19 +422,19 @@
     const rounds = state.rounds || [];
     const round = rounds[idx];
     if (!round || round.status !== 'draft' || idx !== editableIndex(rounds)) {
-      return { error: 'Only the current (first suggested) round can be edited.' };
+      return { error: t('edit.onlyCurrent') };
     }
-    if (a === b) return { error: 'Select two different players.' };
+    if (a === b) return { error: t('edit.twoDifferent') };
     const pm = new Map(state.players.map(p => [p.id, p]));
     const pa = pm.get(a), pb = pm.get(b);
-    if (!pa || !pb || !roundOf(round, a) || !roundOf(round, b)) return { error: 'Both players must be in this round.' };
-    if (pa.groupId !== pb.groupId) return { error: 'Players can only be swapped within the same group.' };
+    if (!pa || !pb || !roundOf(round, a) || !roundOf(round, b)) return { error: t('edit.bothInRound') };
+    if (pa.groupId !== pb.groupId) return { error: t('edit.sameGroup') };
     let pairs = [[a, b]];
     if (state.mode === 'teams') {
-      const team = id => state.teams.find(t => t.playerIds.includes(id));
+      const team = id => state.teams.find(tm => tm.playerIds.includes(id));
       const ta = team(a), tb = team(b);
-      if (!ta || !tb) return { error: 'Team not found.' };
-      if (ta === tb) return { error: 'These players are in the same team.' };
+      if (!ta || !tb) return { error: t('edit.teamNotFound') };
+      if (ta === tb) return { error: t('edit.sameTeam') };
       pairs = ta.playerIds.map((id, i) => [id, tb.playerIds[i]]);
     }
     const swap = new Map();
@@ -451,7 +452,7 @@
   // Confirm rounds[idx] (must be the first draft) and regenerate all later drafts from it.
   function confirmRound(state, idx) {
     const rounds = (state.rounds || []).slice();
-    if (!rounds[idx] || idx !== editableIndex(rounds)) return { error: 'Only the current round can be confirmed.' };
+    if (!rounds[idx] || idx !== editableIndex(rounds)) return { error: t('edit.confirmOnlyCurrent') };
     rounds[idx] = Object.assign({}, rounds[idx], { status: 'confirmed' });
     return { rounds: scheduleState(Object.assign({}, state, { rounds })) };
   }
@@ -512,10 +513,10 @@
 
   function formatFairness(report) {
     const cols = [
-      ['group', 'Group'], ['units', 'Units'], ['restsMin', 'Rests min'], ['restsMax', 'Rests max'],
-      ['maxConsecutiveRests', 'Max consec. rests'], ['repeatedPartnerships', 'Repeat partners'],
-      ['repeatedOpponentPairs', 'Repeat opponents'], ['sameCourtConsecutive', 'Same court consec.'],
-    ];
+      ['group', 'fair.group'], ['units', 'fair.units'], ['restsMin', 'fair.restsMin'], ['restsMax', 'fair.restsMax'],
+      ['maxConsecutiveRests', 'fair.maxConsec'], ['repeatedPartnerships', 'fair.repPartners'],
+      ['repeatedOpponentPairs', 'fair.repOpponents'], ['sameCourtConsecutive', 'fair.sameCourt'],
+    ].map(([k, key]) => [k, t(key)]);
     const rows = [cols.map(c => c[1])].concat(report.map(r => cols.map(c => String(r[c[0]]))));
     const w = cols.map((_, i) => Math.max(...rows.map(r => r[i].length)));
     return rows.map(r => r.map((v, i) => v.padEnd(w[i])).join('  ')).join('\n');

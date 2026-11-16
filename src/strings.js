@@ -1,0 +1,210 @@
+/* Padel Americano — all UI text. One table per language; t(key, vars) fills {placeholders}. */
+(function (root) {
+  'use strict';
+
+  const STRINGS = {
+    en: {
+      'app.title': 'Padel Americano',
+
+      'tab.setup': 'Setup',
+      'tab.rounds': 'Rounds',
+      'tab.find': 'Find player',
+      'tab.rankings': 'Rankings',
+      'tab.data': 'Data',
+
+      'unit.players': 'players',
+      'unit.teams': 'teams',
+      'unit.Players': 'Players',
+      'unit.Teams': 'Teams',
+
+      'common.remove': 'Remove',
+      'common.cancel': 'Cancel',
+      'status.confirmed': 'Confirmed',
+      'status.draft': 'Suggested',
+      'court.n': 'Court {n}',
+
+      // Errors and notices
+      'err.setupInvalid': 'Suggested rounds are cleared until the setup is valid: {errors}',
+      'err.noGroup': 'Add at least one group.',
+      'err.noCourt': 'Select at least one court.',
+      'err.noRounds': 'Set the number of rounds.',
+      'err.groupNameEmpty': 'Group name cannot be empty.',
+      'err.groupExists': 'Group "{name}" already exists.',
+      'err.nameEmpty': 'Name cannot be empty.',
+      'err.nameTaken': '"{name}" is already taken.',
+      'err.removePlayed': 'Already played in a confirmed round, so this cannot be removed.',
+      'err.roundsRange': 'Number of rounds must be between {min} and 50.',
+      'err.importJson': 'Import failed: not a valid JSON file.',
+      'err.importFormat': 'Import failed: this is not a Padel Americano export.',
+      'paste.whyTeams': 'duplicate name or not in "Name1 / Name2" format',
+      'paste.whyPlayers': 'duplicate name',
+      'paste.skipped': 'Added {added}. Skipped {skipped} ({why}); they are left in the box.',
+      'paste.added': 'Added {n} {unit}.',
+      'info.restarted': 'Tournament restarted. Check the setup and press Start.',
+      'info.demoLoaded': 'Demo loaded: 21 Advanced + 48 Beginner, 9 courts, 6 rounds. Press Start.',
+      'info.replaced': '{new} replaces {old} from round {n} on.',
+      'info.imported': 'Imported {players} players and {rounds} rounds.',
+
+      // Confirm / prompt dialogs
+      'confirm.switchMode': 'Switching mode removes all players. Continue?',
+      'confirm.removeGroup': 'Remove this group and its {n} {unit}?',
+      'confirm.restart': 'Restart the tournament? All rounds and scores are deleted. Players and settings are kept.',
+      'confirm.newTournament': 'Start a new tournament? Everything (players, settings, rounds and scores) is deleted.',
+      'confirm.loadDemo': 'Loading the demo replaces all current players and settings. Continue?',
+      'confirm.absent': 'Mark {who} absent from round {n} on? This round and later rounds are regenerated.',
+      'confirm.import': 'Importing replaces the current tournament. Continue?',
+      'confirm.reset': 'Reset everything? All players, rounds and scores will be deleted.',
+      'prompt.rename': 'Rename {name} to:',
+      'prompt.replace': 'Replace {name} from round {n} on. Name of the new player:',
+
+      // Setup
+      'group.default': 'Group {n}',
+      'demo.advanced': 'Advanced',
+      'demo.beginner': 'Beginner',
+      'banner.running': 'Tournament running',
+      'banner.locked': 'Setup is locked. Use "Edit setup" to change players, courts or rounds.',
+      'banner.lockedConfirmed1': 'Mode and courts are locked because 1 round is confirmed. ',
+      'banner.lockedConfirmedN': 'Mode and courts are locked because {n} rounds are confirmed. ',
+      'banner.lockedRest': 'Players and number of rounds can still change; only the suggested rounds are regenerated.',
+      'banner.free': 'No round is confirmed yet, so everything can be changed. Suggested rounds are regenerated on every change.',
+      'banner.fixErrors': 'Fix the setup errors first',
+      'banner.done': 'Done editing',
+      'banner.edit': 'Edit setup',
+      'banner.restart': 'Restart tournament',
+      'banner.new': 'New tournament',
+      'setup.mode': '1. Mode',
+      'mode.americano': 'Americano',
+      'mode.americanoSub': 'Individual, partners change every round',
+      'mode.teams': 'Americano Teams',
+      'mode.teamsSub': 'Fixed pairs play against other pairs',
+      'setup.players': '2. Players',
+      'setup.groupsHint': 'Groups are levels (e.g. Advanced, Beginner), 1–4 groups. Each group plays on its own courts.',
+      'setup.addGroup': '+ Add group',
+      'setup.removeGroup': 'Remove group',
+      'setup.addTeams': 'Add teams',
+      'setup.addPlayers': 'Add players',
+      'setup.pasteTeams': 'One team per line: Name1 / Name2',
+      'setup.pastePlayers': 'One name per line',
+      'setup.absentFrom': 'Absent from round {n}',
+      'setup.courts': '3. Courts',
+      'setup.clubCourts': 'Courts at the club ',
+      'setup.selectAll': 'Select all',
+      'setup.selectNone': 'Select none',
+      'setup.rounds': '4. Rounds',
+      'setup.numRounds': 'Number of rounds ',
+      'setup.start': '5. Start',
+      'setup.runningInfo': 'Running: {rounds} rounds, {confirmed} confirmed.',
+      'setup.goRounds': 'Go to Rounds',
+      'setup.startBtn': 'Start',
+      'setup.loadDemo': 'Load demo (69 players)',
+      'alloc.group': 'Group',
+      'alloc.courts': 'Courts',
+      'alloc.override': 'Override',
+      'alloc.courtNumbers': 'Court numbers',
+      'alloc.playing': 'Playing / round',
+      'alloc.resting': 'Resting / round',
+      'alloc.auto': 'auto',
+      'alloc.unused': 'Unused courts: {list}',
+      'alloc.hint': 'Courts are assigned automatically by group size. Type a number to override.',
+
+      // Court allocation errors (scheduler.js)
+      'alloc.errTooSmall': 'Group "{name}" needs at least {k} {unit} (has {size}).',
+      'alloc.errMax': 'Group "{name}" can use at most {max} courts.',
+      'alloc.errOverrides': 'Court overrides use {sum} courts, but only {c} are available.',
+      'alloc.errNotEnough': 'Not enough courts: at least {needed} needed, {c} selected.',
+      'alloc.errZero': 'Group "{name}" has 0 courts.',
+      // Round editing errors (scheduler.js)
+      'edit.onlyCurrent': 'Only the current (first suggested) round can be edited.',
+      'edit.twoDifferent': 'Select two different players.',
+      'edit.bothInRound': 'Both players must be in this round.',
+      'edit.sameGroup': 'Players can only be swapped within the same group.',
+      'edit.teamNotFound': 'Team not found.',
+      'edit.sameTeam': 'These players are in the same team.',
+      'edit.confirmOnlyCurrent': 'Only the current round can be confirmed.',
+
+      // Rounds
+      'rounds.empty': 'No rounds yet. Add players and courts in Setup, then press Start.',
+      'rounds.back': '← Setup',
+      'rounds.prev': 'Previous round (←)',
+      'rounds.prevAria': 'Previous round',
+      'rounds.pill': 'Round {n}: {status}',
+      'rounds.nextTitle': 'Next round (→)',
+      'rounds.next': 'Next round ›',
+      'rounds.fullscreen': 'Fullscreen',
+      'rounds.exitFullscreen': 'Exit fullscreen',
+      'rounds.title': 'Round {n} of {total}',
+      'rounds.confirm': 'Confirm round {n}',
+      'rounds.regenerate': 'Regenerate suggestion',
+      'rounds.editHint': 'Click two players of the same group to swap them. Click one player for more options.',
+      'rounds.selected': 'Selected: ',
+      'rounds.renameSel': 'Rename {name}',
+      'rounds.replace': 'Replace',
+      'rounds.absentTeam': 'Mark team absent',
+      'rounds.absent': 'Mark absent',
+      'rounds.suggestedOnly': 'Suggested only: confirm round {n} first. This round is regenerated whenever an earlier round is confirmed.',
+      'rounds.court': 'Court {n} — {group}',
+      'rounds.teamA': 'Team A games',
+      'rounds.teamB': 'Team B games',
+      'rounds.vs': 'vs',
+      'rounds.resting': 'Resting',
+      'rounds.nobodyRests': 'Nobody rests this round.',
+
+      // Find player
+      'find.round': 'Round {n}',
+      'find.resting': 'Resting',
+      'find.absent': 'Absent',
+      'find.noMatch': 'No player matches.',
+      'find.search': 'Search player…',
+      'find.searchAria': 'Search player',
+
+      // Rankings
+      'rank.rank': 'Rank',
+      'rank.team': 'Team',
+      'rank.name': 'Name',
+      'rank.group': 'Group',
+      'rank.played': 'Played',
+      'rank.rested': 'Rested',
+      'rank.won': 'Won',
+      'rank.lost': 'Lost',
+      'rank.diff': 'Diff',
+      'rank.wdl': 'W-D-L',
+      'rank.avg': 'Avg',
+      'rank.perGroup': 'Per group',
+      'rank.all': 'All',
+      'rank.allGroups': 'All groups',
+      'rank.final': 'Final standings',
+      'final.rank': '#',
+      'final.close': 'Close (Esc)',
+
+      // Data
+      'data.title': 'Data',
+      'data.hint': 'Everything is saved automatically in this browser. Export a JSON file as a backup or to move to another laptop.',
+      'data.export': 'Export JSON',
+      'data.import': 'Import JSON',
+      'data.reset': 'Reset',
+      'data.fairness': 'Fairness report (all rounds, including suggested)',
+
+      // Fairness report columns (scheduler.js)
+      'fair.group': 'Group',
+      'fair.units': 'Units',
+      'fair.restsMin': 'Rests min',
+      'fair.restsMax': 'Rests max',
+      'fair.maxConsec': 'Max consec. rests',
+      'fair.repPartners': 'Repeat partners',
+      'fair.repOpponents': 'Repeat opponents',
+      'fair.sameCourt': 'Same court consec.',
+    },
+  };
+
+  let lang = 'en';
+  function setLang(l) { if (STRINGS[l]) lang = l; }
+  function t(key, vars) {
+    const table = STRINGS[lang] || STRINGS.en;
+    const s = key in table ? table[key] : (key in STRINGS.en ? STRINGS.en[key] : key);
+    return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s;
+  }
+
+  const api = { STRINGS, t, setLang };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Strings = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
